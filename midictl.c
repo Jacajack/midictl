@@ -18,8 +18,9 @@
 */
 typedef enum controller_type
 {
-	CTL_SLIDER,
-	CTL_HEADER
+	CTL_VALUE,
+	CTL_HEADER,
+	CTL_RULE
 } controller_type;
 
 /**
@@ -88,6 +89,8 @@ void draw_ctls(WINDOW *win, midi_ctl *ctls, int count, int offset, int active)
 		int valid = i < count && i >= 0;
 		midi_ctl *ctl = &ctls[i];
 
+		if (!valid) continue;
+
 		// Invert if selected and draw
 		// background for the left and middle column
 		if (i == active)
@@ -97,11 +100,11 @@ void draw_ctls(WINDOW *win, midi_ctl *ctls, int count, int offset, int active)
 		}
 
 		// Left column
-		if (valid && ctl->type != CTL_HEADER)
+		if (ctl->type == CTL_VALUE)
 			mvprintw(y, col[0], "%3d", ctl->id);
 
 		// Middle column
-		if (valid)
+		if (ctl->type == CTL_VALUE || ctl->type == CTL_HEADER)
 		{
 			mvprintw(y, col[1], "%.*s", colw[1], ctl->name);
 			int len = strlen(ctl->name);
@@ -112,24 +115,34 @@ void draw_ctls(WINDOW *win, midi_ctl *ctls, int count, int offset, int active)
 
 		attroff(A_REVERSE);
 
-		// Right column
-		if (valid)
+		if (ctl->type == CTL_VALUE)
 		{
-			switch (ctl->type)
-			{
-				case CTL_SLIDER:
-					draw_slider_ctl(win, y, col[2], colw[2], ctl->value, 127);
-					break;
-
-				default:
-					break;
-			}
+			draw_slider_ctl(win, y, col[2], colw[2], ctl->value, 127);
+		}
+		else if (ctl->type == CTL_RULE)
+		{
+			mvhline(y, 0, 0, win_w);
 		}
 	}
 
 	// Draw splits
 	mvvline(0, split[0], 0, win_h);
 	mvvline(0, split[1], 0, win_h);
+
+	// Draw crosses where rules are
+	for (int y = 0; y < win_h; y++)
+	{
+		int i = y + offset;
+		int valid = i < count && i >= 0;
+		midi_ctl *ctl = &ctls[i];
+		
+		if (!valid || ctl->type != CTL_RULE) continue;
+
+		move(y, split[0]);
+		addch(ACS_PLUS);
+		move(y, split[1]);
+		addch(ACS_PLUS);
+	}
 }
 
 /**
@@ -147,14 +160,17 @@ midi_ctl *load_ctls_from_file(FILE *f, int *count)
 	int i = 0;
 	while (i < max_lines && getline(&line, &len, f) > 0)
 	{
-		int name_offset;
-		
 		// Handle comments (headers)
 		if (line[0] == '#')
 		{
 			ctls[i].name = malloc(1024);
 			sscanf(line, "#%[^\n\r]", ctls[i].name);
 			ctls[i].type = CTL_HEADER;
+		}
+		else if (line[0] == '-')
+		{
+			ctls[i].name = NULL;
+			ctls[i].type = CTL_RULE;
 		}
 		else // Everything else is a slider
 		{
@@ -169,7 +185,7 @@ midi_ctl *load_ctls_from_file(FILE *f, int *count)
 				return NULL;
 			}
 
-			ctls[i].type = CTL_SLIDER;
+			ctls[i].type = CTL_VALUE;
 			ctls[i].id = cc;
 			ctls[i].value = 64;
 		}
@@ -185,7 +201,7 @@ midi_ctl *load_ctls_from_file(FILE *f, int *count)
 	char found[128] = {0};
 	for (int i = 0; i < *count; i++)
 	{
-		if (ctls[i].type != CTL_HEADER)
+		if (ctls[i].type == CTL_VALUE)
 		{
 			int id = ctls[i].id;
 			if (found[id])
@@ -222,15 +238,16 @@ void send_midi_cc(snd_seq_t *seq, int channel, int cc, int value)
 void show_bottom_mesg(WINDOW *win, const char *format, ...)
 {
 	// Get terminal size
-	int max_x, max_y;
-	getmaxyx(win, max_y, max_x);
+	int win_w, win_h;
+	getmaxyx(win, win_h, win_w);
+	(void) win_w;
 
 	// Clear the bottom line
-	move(max_y - 1, 0);
+	move(win_h - 1, 0);
 	clrtoeol();
 
 	// Show the line
-	move(max_y - 1, 0);
+	move(win_h - 1, 0);
 	va_list ap;
 	va_start(ap, format);
 	vw_printw(win, format, ap);
@@ -292,6 +309,28 @@ void midi_ctl_search(WINDOW *win, midi_ctl *ctls, int ctl_count, int *index)
 	free(str);
 }
 
+void midi_ctl_move_cursor(midi_ctl *ctls, int ctl_count, int *cursor, int delta)
+{
+	int c = *cursor + delta;
+	int d = delta > 0 ? 1 : -1;
+
+	// If not on valid field, continue moving
+	while (c >= 0 && c < ctl_count && ctls[c].type != CTL_VALUE)
+		c += d;
+
+	// If reached end of the list, search from the end in the opposite direction
+	if (c < 0 || c >= ctl_count)
+	{
+		c = d > 0 ? ctl_count - 1 : 0;
+		while (c >= 0 && c < ctl_count && ctls[c].type != CTL_VALUE)
+			c -= d;
+	}
+
+	// If reached the end again, do not update
+	if (c >= 0 && c < ctl_count)
+		*cursor = c;
+}
+
 int main(int argc, char *argv[])
 {
 	int err;
@@ -351,19 +390,21 @@ int main(int argc, char *argv[])
 	curs_set(0);
 	noecho();
 
-	int list_cursor = 0;
-	int list_viewport = 2;
+	// Make sure we start at the top
+	int list_cursor = 1;
+	int list_viewport = 0;
+	midi_ctl_move_cursor(ctls, ctl_count, &list_cursor, -1);
+
 	int active = 1;
 	while (active)
 	{
 		// Get terminal size
 		int win_w, win_h;
 		getmaxyx(win, win_h, win_w);
+		(void) win_w;
 		
 		// Manage list display
 		bool active_ctl_change = 0;
-		if (list_cursor < 0) list_cursor = 0;
-		else if (list_cursor >= ctl_count) list_cursor = ctl_count - 1;
 
 		// Make sure cursor is in the viewport
 		if (list_cursor - list_viewport < 0)
@@ -400,23 +441,23 @@ int main(int argc, char *argv[])
 			// Previous controller
 			case KEY_UP:
 			case 'k':
-				list_cursor--;
+				midi_ctl_move_cursor(ctls, ctl_count, &list_cursor, -1);
 				break;
 
 			// Previous page
 			case KEY_PPAGE:
-				list_cursor -= win_h;
+				midi_ctl_move_cursor(ctls, ctl_count, &list_cursor, -win_h);
 				break;
 
 			// Next controller
 			case KEY_DOWN:
 			case 'j':
-				list_cursor++;
+				midi_ctl_move_cursor(ctls, ctl_count, &list_cursor, 1);
 				break;
 
 			// Next page
 			case KEY_NPAGE:
-				list_cursor += win_h;
+				midi_ctl_move_cursor(ctls, ctl_count, &list_cursor, win_h);
 				break;
 
 			// Increment value
