@@ -249,7 +249,9 @@ char *show_bottom_prompt(WINDOW *win, const char *prompt, ...)
 	va_end(ap);
 	char *buf = malloc(1024);
 	echo();
+	curs_set(1);
 	scanw("%1023s", buf);
+	curs_set(0);
 	noecho();
 	return buf;
 }
