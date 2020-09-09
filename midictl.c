@@ -60,36 +60,64 @@ void draw_slider_ctl(WINDOW *win, int y, int x, int w, int v, int max)
 */
 void draw_ctls(WINDOW *win, midi_ctl *ctls, int count, int offset, int active)
 {
-	int max_x, max_y;
-	getmaxyx(win, max_y, max_x);
+	int win_w, win_h;
+	getmaxyx(win, win_h, win_w);
 	
-	int split_x = max_x / 2;
-	int lcol = 0;
-	int lcol_w = split_x - 1;
-	int rcol = split_x + 2;
-	int rcol_w = max_x - rcol - 2;
+	int col[3];   // Column positions
+	int colw[3];  // Column widths
+	int split[2]; // Splitter positions
 
-	for (int y = 0; y < max_y; y++)
+	// Left column is fixed width
+	col[0] = 0;
+	colw[0] = 4;
+	split[0] = col[0] + colw[0];
+
+	// Middle column takes 0.5 of the space left	
+	col[1] = split[0] + 2;
+	colw[1] = (win_w - colw[0] + 1) * 0.5;
+	split[1] = col[1] + colw[1];
+
+	// The right column takes the rest
+	col[2] = split[1] + 1;
+	colw[2] = win_w - col[2];
+
+	for (int y = 0; y < win_h; y++)
 	{
 		int i = y + offset;
 		int valid = i < count && i >= 0;
 		midi_ctl *ctl = &ctls[i];
 
-		if (i == active) attron(A_REVERSE);
+		// Invert if selected and draw
+		// background for the left and middle column
+		if (i == active)
+		{
+			attron(A_REVERSE);
+			mvprintw(y, col[0], "%*s", split[1], "");
+		}
 
+		// Left column
+		if (valid && ctl->type != CTL_HEADER)
+			mvprintw(y, col[0], "%3d", ctl->id);
+
+		// Middle column
 		if (valid)
-			mvprintw(y, lcol, "%4d %*s", ctl->id, lcol_w - 6, ctl->name);
-		else
-			mvprintw(y, lcol, "%*s", lcol, "");
-		
+		{
+			mvprintw(y, col[1], "%.*s", colw[1], ctl->name);
+			int len = strlen(ctl->name);
+			int left = colw[1] - len;
+			if (left > 0)
+				mvprintw(y, col[1] + len - 1, "%*s", left, "");
+		}
+
 		attroff(A_REVERSE);
 
+		// Right column
 		if (valid)
 		{
 			switch (ctl->type)
 			{
 				case CTL_SLIDER:
-					draw_slider_ctl(win, y, rcol, rcol_w, ctl->value, 127);
+					draw_slider_ctl(win, y, col[2], colw[2], ctl->value, 127);
 					break;
 
 				default:
@@ -98,7 +126,9 @@ void draw_ctls(WINDOW *win, midi_ctl *ctls, int count, int offset, int active)
 		}
 	}
 
-	mvvline(0, split_x, 0, max_y);
+	// Draw splits
+	mvvline(0, split[0], 0, win_h);
+	mvvline(0, split[1], 0, win_h);
 }
 
 /**
@@ -214,7 +244,9 @@ char *show_bottom_prompt(WINDOW *win, const char *prompt, ...)
 	show_bottom_mesg(win, prompt);
 	va_end(ap);
 	char *buf = malloc(1024);
+	echo();
 	scanw("%1023s", buf);
+	noecho();
 	return buf;
 }
 
@@ -225,7 +257,6 @@ void midi_ctl_data_entry(WINDOW *win, midi_ctl *ctl)
 {
 	char *buf = show_bottom_prompt(win, "Enter new value: ");
 	int value;
-	echo();
 	if (!sscanf(buf, "%d", &value) || value < 0 || value > 127)
 	{
 		show_bottom_mesg(win, "Invalid value.");
@@ -235,7 +266,6 @@ void midi_ctl_data_entry(WINDOW *win, midi_ctl *ctl)
 	{
 		midi_ctl_set(ctl, value);
 	}
-	noecho();
 	free(buf);
 }
 
@@ -330,6 +360,8 @@ int main(int argc, char *argv[])
 			
 			// Data entry
 			case KEY_ENTER:
+			case '\n':
+			case '\r':
 			case 'x':
 				midi_ctl_data_entry(win, active_ctl);
 				active_ctl_change = 1;
