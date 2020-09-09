@@ -1,9 +1,12 @@
+#include "midictl.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <ncurses.h>
 #include <stdbool.h>
 #include <stdarg.h>
+#include <argp.h>
 #include <alsa/asoundlib.h>
+#include "args.h"
 
 #define MIN(a, b) ((a) <= (b) ? (a) : (b))
 #define MAX(a, b) ((a) >= (b) ? (a) : (b))
@@ -240,10 +243,17 @@ int main(int argc, char *argv[])
 {
 	int err;
 
-	int midi_dest_client = 28;
-	int midi_dest_port = 0;
-	int midi_channel = 0;
-	
+	// Parse command line args
+	args_config config = {0};
+	struct argp argp = {argp_options, args_parser, argp_keydoc, argp_doc};
+	argp_parse(&argp, argc, argv, 0, 0, &config);
+	if (args_config_interpret(&config))
+		exit(EXIT_FAILURE);
+
+	int midi_dest_client = config.midi_device;
+	int midi_dest_port = config.midi_port;
+	int midi_channel = config.midi_channel;
+
 	// Create MIDI sequencer client
 	snd_seq_t *midi_seq;
 	err = snd_seq_open(&midi_seq, "default", SND_SEQ_OPEN_DUPLEX, 0);
@@ -262,12 +272,12 @@ int main(int argc, char *argv[])
 	err = snd_seq_connect_to(midi_seq, midi_src_port, midi_dest_client, midi_dest_port);
 	if (err < 0)
 	{
-		perror("snd_seq_connect_to() failed");
+		perror("Failed connecting to the MIDI device");
 		exit(EXIT_FAILURE);
 	}
 
 	// Load controller list
-	FILE *ctls_file = fopen("usynth-ctls.txt", "rt");
+	FILE *ctls_file = fopen(config.ctls_filename, "rt");
 	if (ctls_file == NULL)
 	{
 		perror("Could not open controllers file");
@@ -364,13 +374,13 @@ int main(int argc, char *argv[])
 				break;
 
 			// Set to min
-			case 'i':
+			case 'y':
 				midi_ctl_set(active_ctl, 0);
 				active_ctl_change = 1;
 				break;
 
 			// Set to center
-			case 'o':
+			case 'u':
 				midi_ctl_set(active_ctl, 64);
 				active_ctl_change = 1;
 				break;

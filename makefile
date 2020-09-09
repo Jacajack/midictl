@@ -1,2 +1,2 @@
 all:
-	gcc -o midictl midictl.c -Wall -lcurses -lasound
+	gcc -o midictl midictl.c args.c -Wall -lcurses -lasound
