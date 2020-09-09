@@ -4,6 +4,7 @@
 #include <ncurses.h>
 #include <stdbool.h>
 #include <stdarg.h>
+#include <string.h>
 #include <argp.h>
 #include <alsa/asoundlib.h>
 #include "args.h"
@@ -106,7 +107,7 @@ void draw_ctls(WINDOW *win, midi_ctl *ctls, int count, int offset, int active)
 			int len = strlen(ctl->name);
 			int left = colw[1] - len;
 			if (left > 0)
-				mvprintw(y, col[1] + len - 1, "%*s", left, "");
+				mvprintw(y, col[1] + len, "%*s", left, "");
 		}
 
 		attroff(A_REVERSE);
@@ -151,14 +152,15 @@ midi_ctl *load_ctls_from_file(FILE *f, int *count)
 		// Handle comments (headers)
 		if (line[0] == '#')
 		{
-			sscanf(line, "#%n", &name_offset);
+			ctls[i].name = malloc(1024);
+			sscanf(line, "#%[^\n\r]", ctls[i].name);
 			ctls[i].type = CTL_HEADER;
-			ctls[i].name = strdup(line + name_offset);
 		}
 		else // Everything else is a slider
 		{
 			int cc;
-			sscanf(line, "%d %n", &cc, &name_offset);
+			ctls[i].name = malloc(1024);
+			sscanf(line, "%d %[^\n\r]", &cc, ctls[i].name);
 		
 			// Check CC range
 			if (cc < 0 || cc > 127)
@@ -168,7 +170,6 @@ midi_ctl *load_ctls_from_file(FILE *f, int *count)
 			}
 
 			ctls[i].type = CTL_SLIDER;
-			ctls[i].name = strdup(line + name_offset);
 			ctls[i].id = cc;
 			ctls[i].value = 64;
 		}
@@ -184,15 +185,18 @@ midi_ctl *load_ctls_from_file(FILE *f, int *count)
 	char found[128] = {0};
 	for (int i = 0; i < *count; i++)
 	{
-		int id = ctls[i].id;
-		if (found[id])
+		if (ctls[i].type != CTL_HEADER)
 		{
-			free(ctls);
-			fprintf(stderr, "duplicate %d controller found!\n", id);
-			return NULL;
+			int id = ctls[i].id;
+			if (found[id])
+			{
+				free(ctls);
+				fprintf(stderr, "duplicate %d controller found!\n", id);
+				return NULL;
+			}
+			
+			found[id] = 1;
 		}
-		
-		found[id] = 1;
 	}
 	
 	return ctls;
@@ -269,6 +273,23 @@ void midi_ctl_data_entry(WINDOW *win, midi_ctl *ctl)
 	free(buf);
 }
 
+void midi_ctl_search(WINDOW *win, midi_ctl *ctls, int ctl_count, int *index)
+{
+	char *str = show_bottom_prompt(win, "Search for: ");
+
+	for (int i = 0; i < ctl_count; i++)
+	{
+		int k = (i + 1 + *index) % ctl_count;
+		if (ctls[k].type != CTL_HEADER && strcasestr(ctls[k].name, str) != NULL)
+		{
+			*index = k;
+			break;
+		}
+	}
+
+	free(str);
+}
+
 int main(int argc, char *argv[])
 {
 	int err;
@@ -329,24 +350,31 @@ int main(int argc, char *argv[])
 	noecho();
 
 	int list_cursor = 0;
+	int list_viewport = 2;
 	int active = 1;
 	while (active)
 	{
 		// Get terminal size
-		int max_x, max_y;
-		getmaxyx(win, max_y, max_x);
+		int win_w, win_h;
+		getmaxyx(win, win_h, win_w);
 		
 		// Manage list display
 		bool active_ctl_change = 0;
 		if (list_cursor < 0) list_cursor = 0;
 		else if (list_cursor >= ctl_count) list_cursor = ctl_count - 1;
+
+		// Make sure cursor is in the viewport
+		if (list_cursor - list_viewport < 0)
+			list_viewport = list_cursor;
+		if (list_cursor - list_viewport >= win_h)
+			list_viewport = list_cursor - win_h + 1;
 		
 		// Pointer to the currently selected controller
 		midi_ctl *active_ctl = &ctls[list_cursor];
 		
 		// Draw
 		clear();
-		draw_ctls(win, ctls, ctl_count, 0, list_cursor);
+		draw_ctls(win, ctls, ctl_count, list_viewport, list_cursor);
 		refresh();
 
 		// Handle user input
@@ -367,16 +395,26 @@ int main(int argc, char *argv[])
 				active_ctl_change = 1;
 				break;
 
-			// Up arrow
+			// Previous controller
 			case KEY_UP:
 			case 'k':
 				list_cursor--;
 				break;
 
-			// Down arrow
+			// Previous page
+			case KEY_PPAGE:
+				list_cursor -= win_h;
+				break;
+
+			// Next controller
 			case KEY_DOWN:
 			case 'j':
 				list_cursor++;
+				break;
+
+			// Next page
+			case KEY_NPAGE:
+				list_cursor += win_h;
 				break;
 
 			// Increment value
@@ -421,6 +459,11 @@ int main(int argc, char *argv[])
 			case 'i':
 				midi_ctl_set(active_ctl, 127);
 				active_ctl_change = 1;
+				break;
+
+			// Search
+			case '/':
+				midi_ctl_search(win, ctls, ctl_count, &list_cursor);
 				break;
 		}
 
