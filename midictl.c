@@ -27,13 +27,6 @@ void midi_ctl_set(midi_ctl *ctl, int v)
 	ctl->value = v;
 }
 
-midi_ctl controllers[4] = {
-	{CTL_SLIDER, "EG0 Attack", 77, 88},
-	{CTL_SLIDER, "Wavetable", 56, 15},
-	{CTL_ENABLE, "knefel", 123, 0},
-	{CTL_NUMBER, "zabobon", 45, 11},
-};
-
 void draw_slider_ctl(WINDOW *win, int y, int x, int w, int v, int max)
 {
 	int lw; // Label width
@@ -89,6 +82,48 @@ void draw_ctls(WINDOW *win, midi_ctl *ctls, int count, int offset, int active)
 	mvvline(0, split_x, 0, max_y);
 }
 
+midi_ctl *load_ctls_from_file(FILE *f, int *count)
+{
+	// Allocate memory for 512 controllers
+	midi_ctl *ctls = calloc(512, sizeof(midi_ctl));
+	
+	// Parse controller data
+	char *line = NULL;
+	size_t len = 0;
+	int i = 0;
+	while (getline(&line, &len, f) > 0)
+	{
+		int cc;
+		int name_offset;
+		sscanf(line, "%d %n", &cc, &name_offset);
+		
+		ctls[i].type = CTL_SLIDER;
+		ctls[i].name = strdup(line + name_offset);
+		ctls[i].id = cc;
+		ctls[i].value = 64;
+		i++;
+	}
+	
+	// Controller count
+	*count = i;
+	
+	// Check for duplicates
+	char found[128] = {0};
+	for (int i = 0; i < *count; i++)
+	{
+		if (found[i])
+		{
+			free(ctls);
+			fprintf(stderr, "duplicate controllers found!\n");
+			return NULL;
+		}
+		
+		found[i] = 1;
+	}
+	
+	return ctls;
+}
+
 void send_midi_cc(snd_seq_t *seq, int channel, int cc, int value)
 {
 	snd_seq_event_t ev;
@@ -130,32 +165,70 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	// ncurses init
+	// Load controller list
+	FILE *ctls_file = fopen("usynth-ctls.txt", "rt");
+	if (ctls_file == NULL)
+	{
+		perror("Could not open controllers file");
+		exit(EXIT_FAILURE);
+	}
+	
+	int ctl_count = 0;
+	midi_ctl *ctls = load_ctls_from_file(ctls_file, &ctl_count);
+	if (ctls == NULL)
+		exit(EXIT_FAILURE);
+	
+	// Close the controllers file
+	fclose(ctls_file);
+	
+	// Ncurses init
 	WINDOW *win = initscr();
 	keypad(win, TRUE);
 	curs_set(0);
 
 	int list_cursor = 0;
-	midi_ctl *ctls = controllers;
-	int ctl_count = 4;
-
 	while (1)
 	{
-		// Draw
-		clear();
-		draw_ctls(win, ctls, ctl_count, 0, list_cursor);
-		refresh();
-
+		// Get terminal size
+		int max_x, max_y;
+		getmaxyx(win, max_y, max_x);
+		
 		bool active_ctl_change = 0;
 		if (list_cursor < 0) list_cursor = 0;
 		else if (list_cursor >= ctl_count) list_cursor = ctl_count - 1;
 		
 		// Pointer to the currently selected controller
 		midi_ctl *active_ctl = &ctls[list_cursor];
+		
+		// Draw
+		clear();
+		draw_ctls(win, ctls, ctl_count, 0, list_cursor);
+		refresh();
 
-		// Handle user input
+		// Handle user input (TODO: clean this up)
 		int c = getchar();
 		if (c == 'q') break;
+		else if (c == 'x')
+		{
+			// Number entry
+			int x;
+			move(max_y - 1, 0);
+			clrtoeol();
+			mvprintw(max_y - 1, 0, "Please enter new value: ");
+			if (!scanw("%d", &x) || x < 0 || x > 127)
+			{
+				move(max_y - 1, 0);
+				clrtoeol();
+				mvprintw(max_y - 1, 0, "Invalid value.");
+				refresh();
+				getchar();
+			}
+			else
+			{
+				midi_ctl_set(active_ctl, x);
+				active_ctl_change = 1;
+			}
+		}
 		else if (c == '\x1b')
 		{
 			getchar(); // Ignore [
@@ -177,6 +250,7 @@ int main(int argc, char *argv[])
 					active_ctl_change = 1;
 					break;
 
+				// Left arrow
 				case 'D':
 					midi_ctl_set(active_ctl, active_ctl->value - 1);
 					active_ctl_change = 1;
@@ -189,6 +263,11 @@ int main(int argc, char *argv[])
 			send_midi_cc(midi_seq, midi_channel, active_ctl->id, active_ctl->value);
 	}
 
+	// Free controller list
+	for (int i = 0; i < ctl_count; i++)
+		free(ctls[i].name);
+	free(ctls);
+	
 	endwin();
 	snd_seq_close(midi_seq);
 }
