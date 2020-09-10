@@ -7,6 +7,8 @@
 #include <string.h>
 #include <ctype.h>
 #include <argp.h>
+#include <regex.h>
+#include <assert.h>
 #include <alsa/asoundlib.h>
 #include "args.h"
 
@@ -178,11 +180,37 @@ int isempty(const char *s)
 	return 1;
 }
 
+void midi_ctl_apply_metadata(midi_ctl *ctl, const char *metadata)
+{
+	char *meta = strdup(metadata);
+	char *save_ptr = NULL;
+
+	for (char *entry = strtok_r(meta, ",", &save_ptr); entry != NULL; entry = strtok_r(NULL, ",", &save_ptr))
+	{
+		// char key[1024];
+		// int value;
+		// sscanf(entry, "%1023[a-zA-Z]%*[\t ]=%d", key, value);
+	}
+
+	free(meta);
+}
+
 /**
 	\todo Fix memory leaks when handling errors
 */
 midi_ctl *load_ctls_from_file(FILE *f, int *count)
 {
+	int err;
+
+	// Regex for matching control lines
+	regex_t ctl_line_regex;
+	err = regcomp(&ctl_line_regex, "^\\s*([0-9]*)?\\s*(\\[(.*)\\])?\\s*(.*)$", REG_EXTENDED);
+	assert(!err && "Failed to compile regex for matching ctl lines");
+
+	// Maches array
+	int max_matches = 16;
+	regmatch_t matches[max_matches];
+
 	// Allocate memory for some controllers
 	const int max_ctls = 512;
 	midi_ctl *ctls = calloc(max_ctls, sizeof(midi_ctl));
@@ -190,11 +218,12 @@ midi_ctl *load_ctls_from_file(FILE *f, int *count)
 	
 	// Parse controller data
 	char *line = NULL;
-	size_t len = 0;
-	for (int line_number = 1; ctl_count < max_ctls && getline(&line, &len, f) > 0; line_number++)
+	size_t buffer_len = 0;
+	int line_len;
+	for (int line_number = 1; ctl_count < max_ctls && (line_len = getline(&line, &buffer_len, f)) > 0; line_number++)
 	{
 		// Remove the newline character
-		line[--len] = 0;
+		line[line_len - 1] = 0;
 
 		// Ignore comments and empty lines
 		if (isempty(line) || line[0] == '#') continue;
@@ -211,17 +240,28 @@ midi_ctl *load_ctls_from_file(FILE *f, int *count)
 			continue;
 		}
 
-		// If the line starts with a number, it's a controller
-		if (isdigit(line[0]))
+		// Try to match to controller line format
+		if (!regexec(&ctl_line_regex, line, max_matches, matches, 0))
 		{
-			ctl->type = CTL_VALUE;
-			ctl->name = NULL;
+			ctl->id = -1;
 			ctl->value = 64;
 
-			// Check if match is valid
-			if (sscanf(line, "%d%*[ \t]%ms", &ctl->id, &ctl->name) != 2)
+			// Match CC ID
+			if (matches[1].rm_so >= 0)
+				sscanf(line + matches[1].rm_so, "%d", &ctl->id);
+
+			// Match metadata
+			if (matches[3].rm_so >= 0)
 			{
-				fprintf(stderr, "Line %d doest not contain a valid controller description\n", line_number);
+				char *metadata = strndup(line + matches[3].rm_so, matches[3].rm_eo - matches[3].rm_so);
+				midi_ctl_apply_metadata(ctl, metadata);
+				free(metadata);
+			}
+
+			// CC is not set
+			if (ctl->id == -1)
+			{
+				fprintf(stderr, "Missing MIDI CC - line %d\n", line_number);
 				goto error;
 			}
 
@@ -229,6 +269,17 @@ midi_ctl *load_ctls_from_file(FILE *f, int *count)
 			if (ctl->id < 0 || ctl->id > 127)
 			{
 				fprintf(stderr, "Invalid MIDI CC %d\n", ctl->id);
+				goto error;
+			}
+
+			// Get name
+			if (matches[4].rm_so >= 0)
+			{
+				ctl->name = strndup(line + matches[4].rm_so, matches[4].rm_eo - matches[4].rm_so);
+			}
+			else
+			{
+				fprintf(stderr, "Missing control name - line %d", line_number);
 				goto error;
 			}
 
@@ -259,6 +310,7 @@ midi_ctl *load_ctls_from_file(FILE *f, int *count)
 	}
 	
 	// Success
+	regfree(&ctl_line_regex);
 	free(line);
 	*count = ctl_count;
 	return ctls;
@@ -269,6 +321,7 @@ midi_ctl *load_ctls_from_file(FILE *f, int *count)
 		free(ctls[i].name);
 	free(ctls);
 	free(line);
+	regfree(&ctl_line_regex);
 	*count = 0;
 	return NULL;
 }
