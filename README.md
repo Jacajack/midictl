@@ -2,6 +2,8 @@
 
 A terminal-based MIDI control panel meant to be simple and fast in use.
 
+<img src=ss/ss.img width=80% height=auto></img>
+
 ### Controller list file description
 The controller file format accepted by `midictl` is very simple:
  - Empty lines and those starting with `#` are ignored
