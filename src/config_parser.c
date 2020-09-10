@@ -88,7 +88,7 @@ static int parse_config_line(menu_entry *ent, char *line, const char **errstr)
 	{
 		ent->type = ENTRY_HRULE;
 		ent->text = NULL;
-		sscanf(line, "---%*[ \t]%ms", &ent->text);
+		sscanf(line, "---%*[ \t]%m[^\n]", &ent->text);
 		return 1;
 	}
 
