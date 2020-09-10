@@ -5,18 +5,18 @@
 const char *argp_program_version = "midictl v1.0";
 const char *argp_program_bug_address = "<mrjjot@gmail.com>";
 char argp_doc[] = "midictl - a terminal-based MIDI control panel";
-char argp_keydoc[] = "FILENAME";
+char argp_keydoc[] = "CONFIG";
 struct argp_option argp_options[] =
 {
-	{"channel", 'c', "channel",   0, "MIDI channel"},
-	{"device",  'd', "Device ID", 0, "Destination MIDI device"},
-	{"device",  'p', "Port ID",   0, "Destination MIDI port"},
+	{"channel", 'c', "channel", 0, "MIDI channel"},
+	{"device",  'd', "device",  0, "Destination MIDI device"},
+	{"port",    'p', "port",    0, "Destination MIDI port"},
 	{0}
 };
 
 error_t args_parser(int key, char *arg, struct argp_state *state)
 {
-	args_config *conf = (args_config*)state->input;
+	midictl_args *conf = (midictl_args*)state->input;
 	
 	switch (key)
 	{
@@ -34,7 +34,7 @@ error_t args_parser(int key, char *arg, struct argp_state *state)
 
 		case ARGP_KEY_ARG:
 			if (state->arg_num >= 1) argp_usage(state);
-			conf->ctls_filename = arg;
+			conf->config_path = arg;
 			break;
 
 		case ARGP_KEY_END:
@@ -48,7 +48,7 @@ error_t args_parser(int key, char *arg, struct argp_state *state)
 	return 0;
 }
 
-int args_config_interpret(args_config *conf)
+int args_config_interpret(midictl_args *conf)
 {
 	if (conf->midi_channel_str)
 	{

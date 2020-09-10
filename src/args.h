@@ -11,6 +11,6 @@ extern char argp_keydoc[];
 extern struct argp_option argp_options[];
 
 extern error_t args_parser(int key, char *arg, struct argp_state *state);
-extern int args_config_interpret(args_config *conf);
+extern int args_config_interpret(midictl_args *conf);
 
 #endif
