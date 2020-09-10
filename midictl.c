@@ -47,14 +47,22 @@ void midi_ctl_set(midi_ctl *ctl, int v)
 */
 void draw_slider_ctl(WINDOW *win, int y, int x, int w, int v, int max)
 {
-	int lw; // Label width
-	mvprintw(y, x, "%3d [%n", v, &lw);
-	
-	int sw = w - lw - 1; // Slider width
-	int blocks = (float)v / max * sw;
+	// There's no space for the value...
+	if (w < 7)
+	{
+		if (w > 0)
+			mvprintw(y, x, "%*d", w, v);
+	}
+	else
+	{
+		int lw; // Label width
+		mvprintw(y, x, "%3d [%n", v, &lw);
 
-	mvhline(y, x + lw, 0, blocks);
-	mvprintw(y, x + lw + sw, "]");
+		int sw = w - lw - 1; // Slider width
+		int blocks = (float)v / max * sw;
+		mvhline(y, x + lw, 0, blocks);
+		mvprintw(y, x + lw + sw, "]");
+	}
 }
 
 /**
@@ -560,12 +568,12 @@ int main(int argc, char *argv[])
 
 			// Move split to the left
 			case '[':
-				list_split -= 0.1f;
+				list_split -= 0.05f;
 				break;
 
 			// Move split to the right
 			case ']':
-				list_split += 0.1f;
+				list_split += 0.05f;
 				break;
 		}
 
