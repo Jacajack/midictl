@@ -190,7 +190,7 @@ char *draw_bottom_prompt(WINDOW *win, const char *prompt, ...)
 	va_start(ap, prompt);
 	draw_bottom_mesg(win, prompt);
 	va_end(ap);
-	char *buf = malloc(1024);
+	char *buf = calloc(1024, sizeof(char));
 	echo();
 	curs_set(1);
 	scanw("%1023s", buf);
@@ -221,22 +221,48 @@ void midi_ctl_data_entry(WINDOW *win, menu_entry *ent)
 
 /**
 	Shows user a search prompt and searches for an item in menu
+
+	\note Call with menu=NULL or win=NULL to free last search string
 */
 void menu_search(WINDOW *win, menu_entry *menu, int menu_size, menu_entry_type type, int *index)
 {
+	static char *menu_search_last = NULL;
+	if (menu == NULL || win == NULL)
+	{
+		free(menu_search_last);
+		return;
+	}
+
 	char *str = draw_bottom_prompt(win, "Search for: ");
+	char *needle = str;
+	int repeat = 0;
+	
+	// Repeat search
+	if (isempty(str) && menu_search_last != NULL)
+	{
+		needle = menu_search_last;
+		repeat = 1;
+	}
 
 	for (int i = 0; i < menu_size; i++)
 	{
 		int k = (i + 1 + *index) % menu_size;
-		if (menu[k].type == type && menu[k].text && strcasestr(menu[k].text, str) != NULL)
+		if (menu[k].type == type && menu[k].text && strcasestr(menu[k].text, needle) != NULL)
 		{
 			*index = k;
 			break;
 		}
 	}
 
-	free(str);
+	if (repeat)
+	{
+		free(str);
+	}
+	else
+	{
+		free(menu_search_last);
+		menu_search_last = str;
+	}
 }
 
 /**
@@ -481,6 +507,9 @@ int main(int argc, char *argv[])
 		free(menu[i].text);
 	free(menu);
 	
+	// Free search cache
+	menu_search(NULL, NULL, 0, 0, NULL);
+
 	endwin();
 	snd_seq_close(midi_seq);
 	config_parser_destroy();
