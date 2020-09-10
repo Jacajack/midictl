@@ -34,8 +34,15 @@ typedef struct menu_entry
 	char *text;
 
 	// ENTRY_MIDI_CTL
-	int cc;
-	int value;
+	struct
+	{
+		int cc;
+		int value;
+		int min;
+		int max;
+		int def;     //!< Default value (-1 to ignore)
+		int channel; //!< MIDI channel (-1 to use default)
+	} midi_ctl;
 } menu_entry;
 
 #endif

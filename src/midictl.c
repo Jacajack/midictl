@@ -16,15 +16,16 @@
 /**
 	Sets a value for MIDI controller menu entry
 */
-void menu_entry_midi_ctl_set(menu_entry *ctl, int v)
+void menu_entry_midi_ctl_set(menu_entry *ent, int v)
 {
-	ctl->value = CLAMP(v, 0, 127);
+	assert(ent->type == ENTRY_MIDI_CTL);
+	ent->midi_ctl.value = CLAMP(v, ent->midi_ctl.min, ent->midi_ctl.max);
 }
 
 /**
 	Draws a lame slider
 */
-void draw_slider(WINDOW *win, int y, int x, int w, int v, int max)
+void draw_slider(WINDOW *win, int y, int x, int w, int v, int min, int max)
 {
 	// There's no space for the value...
 	if (w < 7)
@@ -38,7 +39,7 @@ void draw_slider(WINDOW *win, int y, int x, int w, int v, int max)
 		mvprintw(y, x, "%3d [%n", v, &lw);
 
 		int sw = w - lw - 1; // Slider width
-		int blocks = (float)v / max * sw;
+		int blocks = (float)(CLAMP(v, min, max) - min) / (max - min) * sw;
 		mvhline(y, x + lw, 0, blocks);
 		mvprintw(y, x + lw + sw, "]");
 	}
@@ -89,7 +90,7 @@ void draw_menu(WINDOW *win, menu_entry *menu, int count, int offset, int active,
 		// Left and middle columns
 		if (ent->type == ENTRY_MIDI_CTL)
 		{
-			mvprintw(y, col[0], "%3d", ent->cc);
+			mvprintw(y, col[0], "%3d", ent->midi_ctl.cc);
 
 			mvprintw(y, col[1], "%.*s", colw[1], ent->text);
 			int len = strlen(ent->text);
@@ -102,7 +103,7 @@ void draw_menu(WINDOW *win, menu_entry *menu, int count, int offset, int active,
 
 		if (ent->type == ENTRY_MIDI_CTL)
 		{
-			draw_slider(win, y, col[2], colw[2], ent->value, 127);
+			draw_slider(win, y, col[2], colw[2], ent->midi_ctl.value, ent->midi_ctl.min, ent->midi_ctl.max);
 		}
 		else if (ent->type == ENTRY_HRULE)
 		{
@@ -190,18 +191,19 @@ char *draw_bottom_prompt(WINDOW *win, const char *prompt, ...)
 /**
 	Shows a prompt asking for a new value for a MIDI controller
 */
-void midi_ctl_data_entry(WINDOW *win, menu_entry *ctl)
+void midi_ctl_data_entry(WINDOW *win, menu_entry *ent)
 {
+	assert(ent->type == ENTRY_MIDI_CTL);
 	char *buf = draw_bottom_prompt(win, "Enter new value: ");
 	int value;
-	if (!sscanf(buf, "%d", &value) || value < 0 || value > 127)
+	if (!sscanf(buf, "%d", &value) || !INRANGE(value, ent->midi_ctl.min, ent->midi_ctl.max))
 	{
 		draw_bottom_mesg(win, "Invalid value.");
 		wgetch(win);
 	}
 	else
 	{
-		menu_entry_midi_ctl_set(ctl, value);
+		menu_entry_midi_ctl_set(ent, value);
 	}
 	free(buf);
 }
@@ -209,7 +211,7 @@ void midi_ctl_data_entry(WINDOW *win, menu_entry *ctl)
 /**
 	Shows user a search prompt and searches for an item in menu
 */
-void menu_midi_ctl_search(WINDOW *win, menu_entry *menu, int menu_size, menu_entry_type type, int *index)
+void menu_search(WINDOW *win, menu_entry *menu, int menu_size, menu_entry_type type, int *index)
 {
 	char *str = draw_bottom_prompt(win, "Search for: ");
 
@@ -251,6 +253,16 @@ void menu_move_cursor(menu_entry *menu, int entry_count, int *cursor, int delta)
 		*cursor = c;
 }
 
+/**
+	Send MIDI CC based on current state of provided MIDI_CTL menu entry
+*/
+void midi_ctl_send_cc(menu_entry *ent, snd_seq_t *seq, int default_midi_channel)
+{
+	assert(ent->type == ENTRY_MIDI_CTL);
+	int ch = ent->midi_ctl.channel < 0 ? default_midi_channel : ent->midi_ctl.channel;
+	alsa_seq_send_midi_cc(seq, ch, ent->midi_ctl.cc, ent->midi_ctl.value);
+}
+
 int main(int argc, char *argv[])
 {
 	// Parse command line args
@@ -260,7 +272,7 @@ int main(int argc, char *argv[])
 	if (args_config_interpret(&config))
 		exit(EXIT_FAILURE);
 
-	int midi_channel = config.midi_channel;
+	int default_midi_channel = config.midi_channel;
 
 	// Init ALSA seq
 	snd_seq_t *midi_seq;
@@ -296,6 +308,12 @@ int main(int argc, char *argv[])
 	
 	// Ncurses init
 	WINDOW *win = initscr();
+	if (win == NULL)
+	{
+		fprintf(stderr, "ncurses init failed!\n");
+		exit(EXIT_FAILURE);
+	}
+
 	keypad(win, TRUE);
 	curs_set(0);
 	noecho();
@@ -305,6 +323,14 @@ int main(int argc, char *argv[])
 	int menu_viewport = 0;
 	float menu_split = 0.7;
 	menu_move_cursor(menu, menu_size, &menu_cursor, -1);
+
+	// Send default CC values for controllers that have them defined
+	for (int i = 0; i < menu_size; i++)
+		if (menu[i].type == ENTRY_MIDI_CTL && menu[i].midi_ctl.def >= 0)
+		{
+			menu[i].midi_ctl.value = menu[i].midi_ctl.def;
+			midi_ctl_send_cc(&menu[i], midi_seq, default_midi_channel);
+		}
 
 	// The main loop
 	int active = 1;
@@ -325,7 +351,7 @@ int main(int argc, char *argv[])
 		if (menu_cursor - menu_viewport >= win_h)
 			menu_viewport = menu_cursor - win_h + 1;
 		
-		// Pointer to the currently selected controller
+		// Currently selected menu entry
 		menu_entry *active_entry = &menu[menu_cursor];
 		
 		// Draw
@@ -377,26 +403,26 @@ int main(int argc, char *argv[])
 			// Increment value
 			case KEY_RIGHT:
 			case 'l':
-				menu_entry_midi_ctl_set(active_entry, active_entry->value + 1);
+				menu_entry_midi_ctl_set(active_entry, active_entry->midi_ctl.value + 1);
 				midi_cc_change = 1;
 				break;
 
 			// Increment value (big step)
 			case 'L':
-				menu_entry_midi_ctl_set(active_entry, active_entry->value + 10);
+				menu_entry_midi_ctl_set(active_entry, active_entry->midi_ctl.value + 10);
 				midi_cc_change = 1;
 				break;
 
 			// Decrement value
 			case 'h':
 			case KEY_LEFT:
-				menu_entry_midi_ctl_set(active_entry, active_entry->value - 1);
+				menu_entry_midi_ctl_set(active_entry, active_entry->midi_ctl.value - 1);
 				midi_cc_change = 1;
 				break;
 
 			// Decrement value (big step)
 			case 'H':
-				menu_entry_midi_ctl_set(active_entry, active_entry->value - 10);
+				menu_entry_midi_ctl_set(active_entry, active_entry->midi_ctl.value - 10);
 				midi_cc_change = 1;
 				break;
 
@@ -420,7 +446,7 @@ int main(int argc, char *argv[])
 
 			// Search
 			case '/':
-				menu_midi_ctl_search(win, menu, menu_size, ENTRY_MIDI_CTL, &menu_cursor);
+				menu_search(win, menu, menu_size, ENTRY_MIDI_CTL, &menu_cursor);
 				break;
 
 			// Move split to the left
@@ -436,7 +462,7 @@ int main(int argc, char *argv[])
 
 		// Send MIDI message if controller value has changed
 		if (midi_cc_change)
-			alsa_seq_send_midi_cc(midi_seq, midi_channel, active_entry->cc, active_entry->value);
+			midi_ctl_send_cc(active_entry, midi_seq, default_midi_channel);
 	}
 
 	// Destroy the menu

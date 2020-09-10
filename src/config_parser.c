@@ -6,28 +6,68 @@
 #include <assert.h>
 #include "utils.h"
 
+/**
+	Regex for matching controller lines in the config
+*/
 static const char *midi_ctl_regex_str = "^\\s*([0-9]*)?\\s*(\\[(.*)\\])?\\s*(.*)$";
 static regex_t midi_ctl_regex;
+
+/**
+	Regex for parsing metadata
+*/
+static const char *metadata_regex_str = "\\s*([a-zA-z]+)\\s*=\\s*(-?[0-9]+)\\s*,?";
+static regex_t metadata_regex;
 
 /**
 	Parses metadata string and properly configures
 	MIDI_CTL menu entry
 */
-static int midi_ctl_apply_metadata(menu_entry *ctl, const char *metadata)
+static int parse_metadata(menu_entry *ent, const char *metadata)
 {
-	char *meta = strdup(metadata);
-	char *save_ptr = NULL;
+	int max_matches = 3;
+	regmatch_t matches[max_matches];
+	int offset = 0;
+	int fail = 0;
+	int cnt = 0;
 
-	for (char *entry = strtok_r(meta, ",", &save_ptr); entry != NULL; entry = strtok_r(NULL, ",", &save_ptr))
+	while (!fail)
 	{
-		// char key[1024];
-		// int value;
-		// sscanf(entry, "%1023[a-zA-Z]%*[\t ]=%d", key, value);
+		const char *str = metadata + offset;
+		int err = regexec(&metadata_regex, str, max_matches, matches, 0);
+		if (err) break;
+
+		// If key or value is missing, abort
+		if (matches[1].rm_so < 0 || matches[2].rm_so < 0)
+		{
+			fail = 1;
+			break;
+		}
+
+		// Extract key and value
+		char *key = strndup(str + matches[1].rm_so, matches[1].rm_eo - matches[1].rm_so);
+		int value = atoi(str + matches[2].rm_so);
+		
+		// TODO: handle negative values
+		if (!strcmp(key, "cc"))
+			ent->midi_ctl.cc = value;
+		else if (!strcmp(key, "min"))
+			ent->midi_ctl.min = value;
+		else if (!strcmp(key, "max"))
+			ent->midi_ctl.max = value;
+		else if (!strcmp(key, "def"))
+			ent->midi_ctl.def = value;
+		else if (!strcmp(key, "chan"))
+			ent->midi_ctl.channel = value;
+		else
+			fail = 1;
+
+		free(key);
+		offset += matches[0].rm_eo;
+		cnt++;
 	}
 
-	free(meta);
-
-	return 0;
+	if (cnt == 0) fail = 1;
+	return fail;
 }
 
 /**
@@ -56,37 +96,77 @@ static int parse_config_line(menu_entry *ent, char *line, const char **errstr)
 	if (!regexec(&midi_ctl_regex, line, max_matches, matches, 0))
 	{
 		ent->type = ENTRY_MIDI_CTL;
-		ent->cc = -1;
-		ent->value = 64;
+		ent->midi_ctl.cc = -1;
+		ent->midi_ctl.min = 0;
+		ent->midi_ctl.max = 127;
+		ent->midi_ctl.channel = -1;
+		ent->midi_ctl.def = -1;
 
 		// Match CC ID
 		if (matches[1].rm_so >= 0)
-			sscanf(line + matches[1].rm_so, "%d", &ent->cc);
+			sscanf(line + matches[1].rm_so, "%d", &ent->midi_ctl.cc);
 
 		// Match metadata
 		if (matches[3].rm_so >= 0)
 		{
 			char *metadata = strndup(line + matches[3].rm_so, matches[3].rm_eo - matches[3].rm_so);
-			int err = midi_ctl_apply_metadata(ent, metadata);
+			int err = parse_metadata(ent, metadata);
 			free(metadata);
 
 			// Metadata parsing failed
 			if (err)
 			{
-				*errstr = "Invalid metadata syntax!";
+				*errstr = "Invalid metadata syntax or key!";
 				return -1;
 			}
 		}
 
+		// Check ranges
+		if (ent->midi_ctl.min >= ent->midi_ctl.max)
+		{
+			*errstr = "'min' must be less than max!";
+			return -1;
+		}
+
+		if (!INRANGE(ent->midi_ctl.min, 0, 127))
+		{
+			*errstr = "Invalid value for 'min'!";
+			return -1;
+		}
+
+		if (!INRANGE(ent->midi_ctl.max, 0, 127))
+		{
+			*errstr = "Invalid value for 'max'!";
+			return -1;
+		}
+
+		if (ent->midi_ctl.def > 0 && !INRANGE(ent->midi_ctl.def, ent->midi_ctl.min, ent->midi_ctl.max))
+		{
+			*errstr = "Default value cannot be outside defined range!";
+			return -1;
+		}
+
+		if (ent->midi_ctl.channel > 0 && !INRANGE(ent->midi_ctl.channel, 0, 15))
+		{
+			*errstr = "Invalid MIDI channel!";
+			return -1;
+		}
+
+		// Default is not set
+		if (ent->midi_ctl.def < 0)
+			ent->midi_ctl.value = 64;
+		else
+			ent->midi_ctl.value = ent->midi_ctl.def;
+
 		// CC is not set
-		if (ent->cc == -1)
+		if (ent->midi_ctl.cc == -1)
 		{
 			*errstr = "MIDI CC value missing!";
 			return -1;
 		}
 
 		// Check CC range
-		if (ent->cc < 0 || ent->cc > 127)
+		if (ent->midi_ctl.cc < 0 || ent->midi_ctl.cc > 127)
 		{
 			*errstr = "MIDI CC value invalid (bad range)!";
 			return -1;
@@ -157,7 +237,7 @@ menu_entry *build_menu_from_config_file(FILE *f, int *count)
 	{
 		if (menu[i].type == ENTRY_MIDI_CTL)
 		{
-			int id = menu[i].cc;
+			int id = menu[i].midi_ctl.cc;
 			if (found[id])
 			{
 				fprintf(stderr, "Duplicate %d controller found!\n", id);
@@ -193,10 +273,14 @@ int config_parser_init(void)
 	err |= regcomp(&midi_ctl_regex, midi_ctl_regex_str, REG_EXTENDED);
 	assert(!err && "Failed to compile regex for matching ctl lines");
 
+	err |= regcomp(&metadata_regex, metadata_regex_str, REG_EXTENDED);
+	assert(!err && "Failed to compile metadata regex");
+
 	return err;
 }
 
 void config_parser_destroy(void)
 {
 	regfree(&midi_ctl_regex);
+	regfree(&metadata_regex);
 }
