@@ -96,6 +96,7 @@ static int parse_config_line(menu_entry *ent, char *line, const char **errstr)
 	if (!regexec(&midi_ctl_regex, line, max_matches, matches, 0))
 	{
 		ent->type = ENTRY_MIDI_CTL;
+		ent->text = NULL;
 		ent->midi_ctl.cc = -1;
 		ent->midi_ctl.min = 0;
 		ent->midi_ctl.max = 127;
@@ -212,7 +213,7 @@ menu_entry *build_menu_from_config_file(FILE *f, int *count)
 	for (int line_number = 1; menu_size < max_menu_size && (line_len = getline(&line, &line_buffer_len, f)) > 0; line_number++)
 	{
 		// Remove the newline character and parse
-		line[line_len - 1] = 0;
+		trim_newline(line);
 
 		const char *errstr = NULL;
 		int err;

@@ -7,5 +7,6 @@
 #define INRANGE(x, min, max) (((x) <= (max)) && ((x) >= (min)))
 
 extern int isempty(const char *s);
+extern void trim_newline(char *s);
 
 #endif

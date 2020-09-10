@@ -11,3 +11,15 @@ int isempty(const char *s)
 			return 0;
 	return 1;
 }
+
+/**
+	Removes newline characters from the end of a string
+*/
+void trim_newline(char *s)
+{
+	char *p = s;
+	while (*p) p++;
+	p -= 1;
+	while (p >= s && (*p == '\n' || *p == '\r'))
+		*p-- = 0;
+}
