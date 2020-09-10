@@ -2,7 +2,7 @@
 #include <argp.h>
 #include "midictl.h"
 
-const char *argp_program_version = "midictl v1.0";
+const char *argp_program_version = "midictl v1.0rc1";
 const char *argp_program_bug_address = "<mrjjot@gmail.com>";
 char argp_doc[] = "midictl - a terminal-based MIDI control panel";
 char argp_keydoc[] = "CONFIG";
