@@ -1,0 +1,14 @@
+--- Oscillators
+110 Detune 1
+111 Waveform 1
+112 Volume 1
+
+---     
+   
+120    Detune 2
+121 Waveform 2
+122 Volume 2
+
+--- Filter
+37 Resonance
+33 Cutoff
