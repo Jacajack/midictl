@@ -50,6 +50,9 @@ error_t args_parser(int key, char *arg, struct argp_state *state)
 
 int args_config_interpret(midictl_args *conf)
 {
+	conf->midi_port = 0;
+	conf->midi_channel = 0;
+
 	if (conf->midi_channel_str)
 	{
 		if (!sscanf(conf->midi_channel_str, "%d", &conf->midi_channel))
@@ -71,16 +74,13 @@ int args_config_interpret(midictl_args *conf)
 		return 1;
 	}
 	
-	if (!conf->midi_port_str)
+	if (conf->midi_port_str)
 	{
-		fprintf(stderr, "MIDI port number must be specified!\n");
-		return 1;
-	}
-
-	if (!sscanf(conf->midi_port_str, "%d", &conf->midi_port))
-	{
-		fprintf(stderr, "Invalid MIDI port number!\n");
-		return 1;
+		if (!sscanf(conf->midi_port_str, "%d", &conf->midi_port))
+		{
+			fprintf(stderr, "Invalid MIDI port number!\n");
+			return 1;
+		}
 	}
 
 	return 0;
