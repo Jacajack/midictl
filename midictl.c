@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stdarg.h>
 #include <string.h>
+#include <ctype.h>
 #include <argp.h>
 #include <alsa/asoundlib.h>
 #include "args.h"
@@ -19,7 +20,6 @@
 typedef enum controller_type
 {
 	CTL_VALUE,
-	CTL_HEADER,
 	CTL_RULE
 } controller_type;
 
@@ -60,7 +60,7 @@ void draw_slider_ctl(WINDOW *win, int y, int x, int w, int v, int max)
 /**
 	The main draw function
 */
-void draw_ctls(WINDOW *win, midi_ctl *ctls, int count, int offset, int active)
+void draw_ctls(WINDOW *win, midi_ctl *ctls, int count, int offset, int active, float split_pos)
 {
 	int win_w, win_h;
 	getmaxyx(win, win_h, win_w);
@@ -76,7 +76,7 @@ void draw_ctls(WINDOW *win, midi_ctl *ctls, int count, int offset, int active)
 
 	// Middle column takes 0.5 of the space left	
 	col[1] = split[0] + 2;
-	colw[1] = (win_w - colw[0] + 1) * 0.5;
+	colw[1] = (win_w - colw[0] + 1) * CLAMP(split_pos, 0.1f, 0.9f);
 	split[1] = col[1] + colw[1];
 
 	// The right column takes the rest
@@ -99,13 +99,11 @@ void draw_ctls(WINDOW *win, midi_ctl *ctls, int count, int offset, int active)
 			mvprintw(y, col[0], "%*s", split[1], "");
 		}
 
-		// Left column
+		// Left and middle columns
 		if (ctl->type == CTL_VALUE)
+		{
 			mvprintw(y, col[0], "%3d", ctl->id);
 
-		// Middle column
-		if (ctl->type == CTL_VALUE || ctl->type == CTL_HEADER)
-		{
 			mvprintw(y, col[1], "%.*s", colw[1], ctl->name);
 			int len = strlen(ctl->name);
 			int left = colw[1] - len;
@@ -122,6 +120,22 @@ void draw_ctls(WINDOW *win, midi_ctl *ctls, int count, int offset, int active)
 		else if (ctl->type == CTL_RULE)
 		{
 			mvhline(y, 0, 0, win_w);
+
+			if (ctl->name)
+			{
+				int len = strlen(ctl->name);
+				int x = split[1] - len - 3;
+				
+				if (x > split[0] && len + 2 < colw[1])
+				{
+					move(y, x);
+					addch(ACS_RTEE);
+					attron(A_REVERSE);
+					printw("%s", ctl->name);
+					attroff(A_REVERSE);
+					addch(ACS_LTEE);
+				}
+			}
 		}
 	}
 
@@ -146,76 +160,109 @@ void draw_ctls(WINDOW *win, midi_ctl *ctls, int count, int offset, int active)
 }
 
 /**
+	\returns whether the string is only whitespace
+*/
+int isempty(const char *s)
+{
+	while (*s)
+		if (!isspace(*s++))
+			return 0;
+	return 1;
+}
+
+/**
 	\todo Fix memory leaks when handling errors
 */
 midi_ctl *load_ctls_from_file(FILE *f, int *count)
 {
 	// Allocate memory for some controllers
-	const int max_lines = 512;
-	midi_ctl *ctls = calloc(max_lines, sizeof(midi_ctl));
+	const int max_ctls = 512;
+	midi_ctl *ctls = calloc(max_ctls, sizeof(midi_ctl));
+	int ctl_count = 0;
 	
 	// Parse controller data
 	char *line = NULL;
 	size_t len = 0;
-	int i = 0;
-	while (i < max_lines && getline(&line, &len, f) > 0)
+	for (int line_number = 1; ctl_count < max_ctls && getline(&line, &len, f) > 0; line_number++)
 	{
-		// Handle comments (headers)
-		if (line[0] == '#')
+		// Remove the newline character
+		line[--len] = 0;
+
+		// Ignore comments and empty lines
+		if (isempty(line) || line[0] == '#') continue;
+
+		midi_ctl *ctl = &ctls[ctl_count];
+
+		// Lines starting with --- are horizontal rules/headers
+		if (strstr(line, "---") == line)
 		{
-			ctls[i].name = malloc(1024);
-			sscanf(line, "#%[^\n\r]", ctls[i].name);
-			ctls[i].type = CTL_HEADER;
+			ctl->type = CTL_RULE;
+			ctl->name = NULL;
+			sscanf(line, "---%*[ \t]%ms", &ctl->name);
+			ctl_count++;
+			continue;
 		}
-		else if (line[0] == '-')
+
+		// If the line starts with a number, it's a controller
+		if (isdigit(line[0]))
 		{
-			ctls[i].name = NULL;
-			ctls[i].type = CTL_RULE;
-		}
-		else // Everything else is a slider
-		{
-			int cc;
-			ctls[i].name = malloc(1024);
-			sscanf(line, "%d %[^\n\r]", &cc, ctls[i].name);
-		
-			// Check CC range
-			if (cc < 0 || cc > 127)
+			ctl->type = CTL_VALUE;
+			ctl->name = NULL;
+			ctl->value = 64;
+
+			// Check if match is valid
+			if (sscanf(line, "%d%*[ \t]%ms", &ctl->id, &ctl->name) != 2)
 			{
-				fprintf(stderr, "Invalid MIDI CC - %d\n", cc);
-				return NULL;
+				fprintf(stderr, "Line %d doest not contain a valid controller description\n", line_number);
+				goto error;
 			}
 
-			ctls[i].type = CTL_VALUE;
-			ctls[i].id = cc;
-			ctls[i].value = 64;
-		}
-		
-		i++;
-	}
-	free(line);
+			// Check CC range
+			if (ctl->id < 0 || ctl->id > 127)
+			{
+				fprintf(stderr, "Invalid MIDI CC %d\n", ctl->id);
+				goto error;
+			}
 
-	// Controller count
-	*count = i;
-	
+			ctl_count++;
+			continue;
+		}
+
+		// If we got here, something is wrong
+		fprintf(stderr, "Bad syntax on line %d\n", line_number);
+		goto error;
+	}
+
 	// Check for duplicates
 	char found[128] = {0};
-	for (int i = 0; i < *count; i++)
+	for (int i = 0; i < ctl_count; i++)
 	{
 		if (ctls[i].type == CTL_VALUE)
 		{
 			int id = ctls[i].id;
 			if (found[id])
 			{
-				free(ctls);
-				fprintf(stderr, "duplicate %d controller found!\n", id);
-				return NULL;
+				fprintf(stderr, "Duplicate %d controller found!\n", id);
+				goto error;
 			}
 			
 			found[id] = 1;
 		}
 	}
 	
+	// Success
+	free(line);
+	*count = ctl_count;
 	return ctls;
+
+	// Exit with error
+	error:
+	for (int i = 0; i < ctl_count; i++)
+		free(ctls[i].name);
+	free(ctls);
+	free(line);
+	*count = 0;
+	return NULL;
 }
 
 /**
@@ -299,7 +346,7 @@ void midi_ctl_search(WINDOW *win, midi_ctl *ctls, int ctl_count, int *index)
 	for (int i = 0; i < ctl_count; i++)
 	{
 		int k = (i + 1 + *index) % ctl_count;
-		if (ctls[k].type != CTL_HEADER && strcasestr(ctls[k].name, str) != NULL)
+		if (ctls[k].type == CTL_VALUE && strcasestr(ctls[k].name, str) != NULL)
 		{
 			*index = k;
 			break;
@@ -393,6 +440,7 @@ int main(int argc, char *argv[])
 	// Make sure we start at the top
 	int list_cursor = 1;
 	int list_viewport = 0;
+	float list_split = 0.7;
 	midi_ctl_move_cursor(ctls, ctl_count, &list_cursor, -1);
 
 	int active = 1;
@@ -417,7 +465,8 @@ int main(int argc, char *argv[])
 		
 		// Draw
 		clear();
-		draw_ctls(win, ctls, ctl_count, list_viewport, list_cursor);
+		list_split = CLAMP(list_split, 0.2f, 0.8f);
+		draw_ctls(win, ctls, ctl_count, list_viewport, list_cursor, list_split);
 		refresh();
 
 		// Handle user input
@@ -507,6 +556,16 @@ int main(int argc, char *argv[])
 			// Search
 			case '/':
 				midi_ctl_search(win, ctls, ctl_count, &list_cursor);
+				break;
+
+			// Move split to the left
+			case '[':
+				list_split -= 0.1f;
+				break;
+
+			// Move split to the right
+			case ']':
+				list_split += 0.1f;
 				break;
 		}
 
