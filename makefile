@@ -1,6 +1,18 @@
+DEBUG ?= 0
+RELEASE ?= 0
 CC = cc
 LIBS = -lcurses -lasound 
-CFLAGS = -Wall --std=gnu99 -D_GNU_SOURCE -O2 $(LIBS)
+CFLAGS = -Wall --std=gnu99 -D_GNU_SOURCE
+
+ifneq ($(DEBUG),0)
+$(warning Compiling in debug mode!)
+CC = clang
+CFLAGS += -fsanitize=address -fsanitize=undefined -DDEBUG -O0 -g -fno-builtin
+endif
+
+ifneq ($(RELEASE),0)
+CFLAGS += -DNDEBUG -O2 -s
+endif
 
 SOURCES = src/midictl.c src/config_parser.c src/alsa.c src/args.c src/utils.c
 OBJECTS = $(patsubst %.c,%.o,$(SOURCES))
@@ -14,7 +26,7 @@ clean:
 	rm -f $(DEPENDS) $(OBJECTS) midictl
 
 midictl: $(OBJECTS)
-	$(CC) $(CFLAGS) $^ -o $@
+	$(CC) $(CFLAGS) $(LIBS) $^ -o $@
 
 -include $(DEPENDS)
 
