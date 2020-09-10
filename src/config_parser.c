@@ -58,6 +58,8 @@ static int parse_metadata(menu_entry *ent, const char *metadata)
 			ent->midi_ctl.def = value;
 		else if (!strcmp(key, "chan"))
 			ent->midi_ctl.channel = value;
+		else if (!strcmp(key, "slider"))
+			ent->midi_ctl.slider = value != 0;
 		else
 			fail = 1;
 
@@ -102,6 +104,7 @@ static int parse_config_line(menu_entry *ent, char *line, const char **errstr)
 		ent->midi_ctl.max = 127;
 		ent->midi_ctl.channel = -1;
 		ent->midi_ctl.def = -1;
+		ent->midi_ctl.slider = 1;
 
 		// Match CC ID
 		if (matches[1].rm_so >= 0)

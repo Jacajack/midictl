@@ -46,6 +46,14 @@ void draw_slider(WINDOW *win, int y, int x, int w, int v, int min, int max)
 }
 
 /**
+	Draws slider without the slider part
+*/
+void draw_value_label(WINDOW *win, int y, int x, int w, int v, int min, int max)
+{
+	mvprintw(y, x, "%3d", v);
+}
+
+/**
 	The main draw function
 */
 void draw_menu(WINDOW *win, menu_entry *menu, int count, int offset, int active, float split_pos)
@@ -103,7 +111,10 @@ void draw_menu(WINDOW *win, menu_entry *menu, int count, int offset, int active,
 
 		if (ent->type == ENTRY_MIDI_CTL)
 		{
-			draw_slider(win, y, col[2], colw[2], ent->midi_ctl.value, ent->midi_ctl.min, ent->midi_ctl.max);
+			if (ent->midi_ctl.slider)
+				draw_slider(win, y, col[2], colw[2], ent->midi_ctl.value, ent->midi_ctl.min, ent->midi_ctl.max);
+			else
+				draw_value_label(win, y, col[2], colw[2], ent->midi_ctl.value, ent->midi_ctl.min, ent->midi_ctl.max);
 		}
 		else if (ent->type == ENTRY_HRULE)
 		{

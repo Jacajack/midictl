@@ -42,6 +42,7 @@ typedef struct menu_entry
 		int max;
 		int def;     //!< Default value (-1 to ignore)
 		int channel; //!< MIDI channel (-1 to use default)
+		int slider;  //!< Should slider be displayed
 	} midi_ctl;
 } menu_entry;
 
