@@ -40,7 +40,7 @@ Key bindings:
 The config file format is meant to be as simple and friendly as possible. Each line in the file represents one MIDI controller, a heading or a horizontal rule.
  - Empty lines, preceding whitespace and comments are ignored
  - Comments start at `#` character and end at the end of the line
- - Lines starting with `---` represent horizontal rules. If the `---` is followed by text, it is placed over the horizontal rule and serves as heading.
+ - Lines starting with `---` (or more `-` characters) represent horizontal rules. If the `---` is followed by text, it is placed over the horizontal rule and serves as heading.
  - Lines starting with numbers or square brackets are MIDI controllers. The number is the MIDI controller number. The number can be followed by optional square bracket pair containing metadata. Any text following the number or metadata block is treated as name of the controller.
 
 It sounds much more complicated than it is:

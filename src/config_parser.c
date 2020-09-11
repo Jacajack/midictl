@@ -19,6 +19,13 @@ static const char *metadata_regex_str = "\\s*([a-zA-z]+)\\s*=\\s*(-?[0-9]+)\\s*,
 static regex_t metadata_regex;
 
 /**
+	Regex for matching hrules
+*/
+static const char *hrule_regex_str = "^\\s*---+\\s*(.*)";
+static regex_t hrule_regex;
+
+
+/**
 	Parses metadata string and properly configures
 	MIDI_CTL menu entry
 */
@@ -88,11 +95,14 @@ static int parse_config_line(menu_entry *ent, char *line, const char **errstr)
 	if (isempty(line)) return 0;
 
 	// Lines starting with --- are horizontal rules/headers
-	if (strstr(line, "---") == line)
+	if (!regexec(&hrule_regex, line, max_matches, matches, 0))
 	{
 		ent->type = ENTRY_HRULE;
-		ent->text = NULL;
-		sscanf(line, "---%*[ \t]%m[^\n]", &ent->text);
+		if (matches[1].rm_so >= 0)
+			ent->text = strndup(line + matches[1].rm_so, matches[1].rm_eo - matches[1].rm_so);
+		else
+			ent->text = NULL;
+
 		return 1;
 	}
 
@@ -304,6 +314,9 @@ int config_parser_init(void)
 	err |= regcomp(&metadata_regex, metadata_regex_str, REG_EXTENDED);
 	assert(!err && "Failed to compile metadata regex");
 
+	err |= regcomp(&hrule_regex, hrule_regex_str, REG_EXTENDED);
+	assert(!err && "Failed to compile hrule regex");
+
 	return err;
 }
 
@@ -311,4 +324,5 @@ void config_parser_destroy(void)
 {
 	regfree(&midi_ctl_regex);
 	regfree(&metadata_regex);
+	regfree(&hrule_regex);
 }
