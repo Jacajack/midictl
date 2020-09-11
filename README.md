@@ -57,10 +57,10 @@ Valid metadata parameters are:
  - `cc` - MIDI CC. Overrides the value specified outside the metadata block. As you can see, the controller number can be omitted as long as this parameter is set instead. In my opinion this syntax looks better actually.
  - `min` - Minimum value for the controller
  - `max` - Maximum value for the controller
- - `def` - Default value. All controllers that have this parameter set are automatically transmitted when `midictl` starts.
+ - `def` - Default value. 
  - `chan` - MIDI channel (overrides default MIDI channel)
  - `slider` - The slider is not displayed if set to 0
-
+ - `update` - If non-zero, controller's default value is automatically transmitted when `midictl` starts.
 
 #### Some wild development ideas
  - [ ] More colors!

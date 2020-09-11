@@ -60,6 +60,8 @@ static int parse_metadata(menu_entry *ent, const char *metadata)
 			ent->midi_ctl.channel = value;
 		else if (!strcmp(key, "slider"))
 			ent->midi_ctl.slider = value != 0;
+		else if (!strcmp(key, "update"))
+			ent->midi_ctl.changed = value != 0;
 		else
 			fail = 1;
 
@@ -159,7 +161,6 @@ static int parse_config_line(menu_entry *ent, char *line, const char **errstr)
 
 		// Default
 		// TODO replace with midi_ctl_reset
-		// Controllers that have default value defined are marked as changed at the beginning
 		if (ent->midi_ctl.def < 0)
 			ent->midi_ctl.value = (ent->midi_ctl.min + ent->midi_ctl.max) / 2;
 		else
