@@ -515,7 +515,7 @@ int main(int argc, char *argv[])
 	int menu_cursor = 1;
 	int menu_viewport = 0;
 	int menu_show_lcol = 1;
-	float menu_split = 0.7;
+	float menu_split = 0.5;
 	menu_move_cursor(menu, menu_size, &menu_cursor, -1);
 
 	// Update changed controllers
