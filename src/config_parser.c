@@ -238,8 +238,8 @@ menu_entry *build_menu_from_config_file(FILE *f, int *count)
 	for (int line_number = 1; menu_size < max_menu_size && (line_len = getline(&line, &line_buffer_len, f)) > 0; line_number++)
 	{
 		// Remove the newline, preceding whitespace and comments
-		trim_newline(line);
 		remove_comment(line);
+		trim_r_whitespace(line);
 		char *text = line + strspn(line, " \t");
 
 		const char *errstr = NULL;

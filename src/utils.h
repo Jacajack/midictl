@@ -8,5 +8,6 @@
 
 extern int isempty(const char *s);
 extern void trim_newline(char *s);
+extern void trim_r_whitespace(char *s);
 
 #endif

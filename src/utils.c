@@ -23,3 +23,15 @@ void trim_newline(char *s)
 	while (p >= s && (*p == '\n' || *p == '\r'))
 		*p-- = 0;
 }
+
+/**
+	Removes whitespace from the end of a string
+*/
+void trim_r_whitespace(char *s)
+{
+	char *p = s;
+	while (*p) p++;
+	p -= 1;
+	while (p >= s && isspace(*p))
+		*p-- = 0;
+}
