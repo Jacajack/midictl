@@ -2,35 +2,68 @@
 
 A terminal-based MIDI control panel meant to be simple and fast in use.
 
-<img src=ss/ss.png width=80% height=auto></img>
+<img src=ss/ss.png margin=auto></img>
 
-### Controller list file description
-The controller file format accepted by `midictl` is very simple:
- - Empty lines and those starting with `#` are ignored
+## Using midictl
+Basic use is very straightforward: `midictl <config file> -d <client ID> -p <port> -c <MIDI channel>`.
+You can determine client ID and port number of the device you want by executing `aconnect -o`.
+Configuration file format is described in the next section.
+
+_Please keep in mind that `midictl` is in very early stage of its life. I literally just wrote it in the two past days. You may stumble upon weird bugs (if you do, please [open an issue](https://github.com/Jacajack/midictl/issues/new)). Some things may change in future releases, including key bindings and config file format._
+
+Key bindings:
+ - <kbd>Q</kbd> - Quit
+ - <kbd>K</kbd>, <kbd>&#8593;</kbd> - Move up
+ - <kbd>J</kbd>, <kbd>&#8595;</kbd> - Move down
+ - <kbd>H</kbd>, <kbd>&#8592;</kbd> - Value -= 1 
+ - <kbd>Shift</kbd> + <kbd>H</kbd> - Value -= 10 
+ - <kbd>L</kbd>, <kbd>&#8594;</kbd> - Value += 1
+ - <kbd>Shift</kbd> + <kbd>L</kbd> - Value += 10 
+ - <kbd>I</kbd>, <kbd>Enter</kbd> - Enter value for the controller
+ - <kbd>Z</kbd> - Min value
+ - <kbd>X</kbd> - Center value
+ - <kbd>C</kbd> - Max value
+ - <kbd>T</kbd> - Transmit value to the MIDI device
+ - <kbd>Shift</kbd> + <kbd>T</kbd> - Transmit all current values to the MIDI device
+ - <kbd>R</kbd> - Default value
+ - <kbd>Shift</kbd> + <kbd>R</kbd> - Reset all controllers to their defaults
+ - <kbd>/</kbd> - Search for controller by name (leave empty to repeat search)
+ - <kbd>[</kbd> - Move split to the left
+ - <kbd>]</kbd> - Move split to the right
+
+## Config file format
+The config file format is meant to be as simple and friendly as possible. Each line in the file represents one MIDI controller, a heading or a horizontal rule.
+ - Empty lines and those starting with `#` are ignored.
  - Lines starting with `---` represent horizontal rules. If the `---` is followed by text, it is placed over the horizontal rule and serves as heading.
- - Lines starting with numbers represet MIDI controllers. The number must be in range [0; 127]. The text following the number is used as controller name.
+ - Lines starting with numbers or square brackets are MIDI controllers. The number is the MIDI controller number. The number can be followed by optional square bracket pair containing metadata. Any text following the number or metadata block is treated as name of the controller.
 
- An example configuration:
- ```
---- Oscillators
-110 Detune 1
-111 Waveform 1
-112 Volume 1
----
-120 Detune 2
-121 Waveform 2
-122 Volume 2
+It sounds much more complicated than it is:
+```
+--- Oscillator 1
+10 [slider = 0] Waveform
+11 [min = 32, max = 96] Detune
+12 [def = 127] Volume
+
+--- LFO
+[cc = 13] Rate
+14 Fade
 ```
 
-### Using midictl
-`midictl` uses ALSA sequencer to send MIDI CC messages. It requires the user to specify destination device ID and port number. To list all output MIDI devices you can use `aconnect -o`:
-```
-client 14: 'Midi Through' [type=kernel]
-    0 'Midi Through Port-0'
-client 130: 'VMPK Input' [type=user,pid=497443]
-    0 'in  
-```
+Valid metadata parameters are:
+ - `cc` - MIDI CC. Overrides the value specified outside the metadata block. As you can see, the controller number can be omitted as long as this parameter is set instead. In my opinion this syntax looks better actually.
+ - `min` - Minimum value for the controller
+ - `max` - Maximum value for the controller
+ - `def` - Default value. All controllers that have this parameter set are automatically transmitted when `midictl` starts.
+ - `chan` - MIDI channel (overrides default MIDI channel)
+ - `slider` - The slider is not displayed if set to 0
 
-For example, to connect to `VMPK Input` (device 130, port 0) you would use `midictl -d 130 -p 0 ...`.
 
-TODO
+#### Some wild development ideas
+ - [ ] More colors!
+ - [ ] Device access
+ - [ ] `hide` metadata parameter
+ - [ ] Loading config files on the fly
+ - [ ] Multiple tabs
+ - [ ] Configurable key bindings
+ - [ ] Transmit program change messages etc.
+ - [ ] 14-bit controller support (a big one...)
