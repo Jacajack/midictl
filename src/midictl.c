@@ -289,7 +289,7 @@ void midi_ctl_set(menu_entry *ent, int v)
 /**
 	Send MIDI CC based on current state of provided MIDI_CTL menu entry
 */
-void midi_ctl_send_cc(menu_entry *ent, snd_seq_t *seq, int default_midi_channel)
+void midi_ctl_send_cc(menu_entry *ent, midictl_alsa_seq *seq, int default_midi_channel)
 {
 	assert(ent->type == ENTRY_MIDI_CTL);
 	int ch = ent->midi_ctl.channel < 0 ? default_midi_channel : ent->midi_ctl.channel;
@@ -341,7 +341,7 @@ void midi_ctl_touch_all(menu_entry *menu, int menu_size)
 /**
 	Update (transmit) all controllers marked as changed
 */
-void midi_ctl_update_changed(menu_entry *menu, int menu_size, snd_seq_t *seq, int default_midi_channel)
+void midi_ctl_update_changed(menu_entry *menu, int menu_size, midictl_alsa_seq *seq, int default_midi_channel)
 {
 	for (int i = 0; i < menu_size; i++)
 		if (menu[i].type == ENTRY_MIDI_CTL && menu[i].midi_ctl.changed)
@@ -468,7 +468,7 @@ int main(int argc, char *argv[])
 	int default_midi_channel = config.midi_channel;
 
 	// Init ALSA seq
-	snd_seq_t *midi_seq;
+	midictl_alsa_seq midi_seq;
 	if (alsa_seq_init(&midi_seq, config.midi_device, config.midi_port))
 	{
 		fprintf(stderr, "ALSA sequencer init failed!\n");
@@ -521,7 +521,7 @@ int main(int argc, char *argv[])
 	// Update changed controllers
 	// At this point only controllers with default value have 'changed' flag set
 	// see: config_parser.c
-	midi_ctl_update_changed(menu, menu_size, midi_seq, default_midi_channel);
+	midi_ctl_update_changed(menu, menu_size, &midi_seq, default_midi_channel);
 
 	// The main loop
 	int active = 1;
@@ -687,7 +687,7 @@ int main(int argc, char *argv[])
 		}
 
 		// Update all changed controllers
-		midi_ctl_update_changed(menu, menu_size, midi_seq, default_midi_channel);
+		midi_ctl_update_changed(menu, menu_size, &midi_seq, default_midi_channel);
 	}
 
 	// Destroy the menu
@@ -699,7 +699,7 @@ int main(int argc, char *argv[])
 	menu_search(NULL, NULL, 0, 0, NULL);
 
 	endwin();
-	snd_seq_close(midi_seq);
+	alsa_seq_destroy(&midi_seq);
 	config_parser_destroy();
 	return 0;
 }
