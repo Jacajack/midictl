@@ -368,6 +368,39 @@ void midi_ctl_value_prompt(WINDOW *win, menu_entry *ent)
 	free(buf);
 }
 
+/**
+	Writes all current controller values to a file
+
+	\note The filename input handles all characters very literally
+*/
+void midi_ctl_dump_all_to_file(WINDOW *win, menu_entry *menu, int menu_size)
+{
+	char *filename = draw_bottom_prompt(win, "Dump to file: ");
+	if (isempty(filename))
+	{
+		free(filename);
+		return;
+	}
+
+	FILE *f = fopen(filename, "wt");
+	free(filename);
+	
+	if (!f)
+	{
+		draw_bottom_mesg(win, "Could not open file for writing.");
+		wgetch(win);
+		return;
+	}
+
+	for (int i = 0; i < menu_size; i++)
+	{
+		if (menu[i].type == ENTRY_MIDI_CTL)
+			fprintf(f, "%d\t%d\t# %s\n", menu[i].midi_ctl.cc, menu[i].midi_ctl.value, menu[i].text);
+	}
+
+	fclose(f);
+}
+
 int main(int argc, char *argv[])
 {
 	// Parse command line args
@@ -565,6 +598,11 @@ int main(int argc, char *argv[])
 			// Retransmit
 			case 'T':
 				midi_ctl_touch_all(menu, menu_size);
+				break;
+
+			// Dump all to file
+			case 'D':
+				midi_ctl_dump_all_to_file(win, menu, menu_size);
 				break;
 
 			// Search
