@@ -84,8 +84,8 @@ static int parse_config_line(menu_entry *ent, char *line, const char **errstr)
 	int max_matches = 16;
 	regmatch_t matches[max_matches];
 
-	// Ignore comments and empty lines
-	if (isempty(line) || line[0] == '#') return 0;
+	// Ignore empty lines
+	if (isempty(line)) return 0;
 
 	// Lines starting with --- are horizontal rules/headers
 	if (strstr(line, "---") == line)
@@ -202,6 +202,22 @@ static int parse_config_line(menu_entry *ent, char *line, const char **errstr)
 }
 
 /**
+	Removes comment from a line
+*/
+static void remove_comment(char *s)
+{
+	int match = 0;
+	while (*s)
+	{
+		if (*s == '#')
+			match = 1;
+		if (match)
+			*s = 0;
+		s++;
+	}
+}
+
+/**
 	Build menu based on config file
 
 	\todo Fix memory leaks when handling errors
@@ -221,13 +237,15 @@ menu_entry *build_menu_from_config_file(FILE *f, int *count)
 	int line_len;
 	for (int line_number = 1; menu_size < max_menu_size && (line_len = getline(&line, &line_buffer_len, f)) > 0; line_number++)
 	{
-		// Remove the newline character and parse
+		// Remove the newline, preceding whitespace and comments
 		trim_newline(line);
+		remove_comment(line);
+		char *text = line + strspn(line, " \t");
 
 		const char *errstr = NULL;
 		int err;
 
-		err = parse_config_line(&menu[menu_size], line, &errstr);
+		err = parse_config_line(&menu[menu_size], text, &errstr);
 
 		if (err < 0)
 		{
