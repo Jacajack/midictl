@@ -1,3 +1,6 @@
+.vscode
 midictl
 **/*.o
 **/*.d
+**/*.ctl
+**/*.prog
