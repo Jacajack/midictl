@@ -32,6 +32,7 @@ Key bindings:
  - <kbd>Shift</kbd> + <kbd>T</kbd> - Transmit all current values to the MIDI device
  - <kbd>Shift</kbd> + <kbd>R</kbd> - Reset all controllers to their defaults
  - <kbd>Shift</kbd> + <kbd>D</kbd> - Dump all controller values to file
+ - <kbd>Shift</kbd> + <kbd>O</kbd> - Load controller values from a dump file
  - <kbd>/</kbd> - Search for controller by name (leave empty to repeat search)
  - <kbd>[</kbd> - Move split to the left
  - <kbd>]</kbd> - Move split to the right
