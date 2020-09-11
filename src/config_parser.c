@@ -105,6 +105,7 @@ static int parse_config_line(menu_entry *ent, char *line, const char **errstr)
 		ent->midi_ctl.channel = -1;
 		ent->midi_ctl.def = -1;
 		ent->midi_ctl.slider = 1;
+		ent->midi_ctl.changed = 0;
 
 		// Match CC ID
 		if (matches[1].rm_so >= 0)
@@ -156,11 +157,15 @@ static int parse_config_line(menu_entry *ent, char *line, const char **errstr)
 			return -1;
 		}
 
-		// Default is not set
+		// Default
+		// TODO replace with midi_ctl_reset
+		// Controllers that have default value defined are marked as changed at the beginning
 		if (ent->midi_ctl.def < 0)
-			ent->midi_ctl.value = 64;
+			ent->midi_ctl.value = (ent->midi_ctl.min + ent->midi_ctl.max) / 2;
 		else
+		{
 			ent->midi_ctl.value = ent->midi_ctl.def;
+		}
 
 		// CC is not set
 		if (ent->midi_ctl.cc == -1)

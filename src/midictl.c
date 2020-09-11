@@ -14,15 +14,6 @@
 #include "utils.h"
 
 /**
-	Sets a value for MIDI controller menu entry
-*/
-void menu_entry_midi_ctl_set(menu_entry *ent, int v)
-{
-	assert(ent->type == ENTRY_MIDI_CTL);
-	ent->midi_ctl.value = CLAMP(v, ent->midi_ctl.min, ent->midi_ctl.max);
-}
-
-/**
 	Draws a lame slider
 */
 void draw_slider(WINDOW *win, int y, int x, int w, int v, int min, int max)
@@ -200,26 +191,6 @@ char *draw_bottom_prompt(WINDOW *win, const char *prompt, ...)
 }
 
 /**
-	Shows a prompt asking for a new value for a MIDI controller
-*/
-void midi_ctl_data_entry(WINDOW *win, menu_entry *ent)
-{
-	assert(ent->type == ENTRY_MIDI_CTL);
-	char *buf = draw_bottom_prompt(win, "Enter new value: ");
-	int value;
-	if (!sscanf(buf, "%d", &value) || !INRANGE(value, ent->midi_ctl.min, ent->midi_ctl.max))
-	{
-		draw_bottom_mesg(win, "Invalid value.");
-		wgetch(win);
-	}
-	else
-	{
-		menu_entry_midi_ctl_set(ent, value);
-	}
-	free(buf);
-}
-
-/**
 	Shows user a search prompt and searches for an item in menu
 
 	\note Call with menu=NULL or win=NULL to free last search string
@@ -291,6 +262,16 @@ void menu_move_cursor(menu_entry *menu, int entry_count, int *cursor, int delta)
 }
 
 /**
+	Sets a value for MIDI controller menu entry
+*/
+void midi_ctl_set(menu_entry *ent, int v)
+{
+	assert(ent->type == ENTRY_MIDI_CTL);
+	ent->midi_ctl.value = CLAMP(v, ent->midi_ctl.min, ent->midi_ctl.max);
+	ent->midi_ctl.changed = 1;
+}
+
+/**
 	Send MIDI CC based on current state of provided MIDI_CTL menu entry
 */
 void midi_ctl_send_cc(menu_entry *ent, snd_seq_t *seq, int default_midi_channel)
@@ -298,6 +279,78 @@ void midi_ctl_send_cc(menu_entry *ent, snd_seq_t *seq, int default_midi_channel)
 	assert(ent->type == ENTRY_MIDI_CTL);
 	int ch = ent->midi_ctl.channel < 0 ? default_midi_channel : ent->midi_ctl.channel;
 	alsa_seq_send_midi_cc(seq, ch, ent->midi_ctl.cc, ent->midi_ctl.value);
+	ent->midi_ctl.changed = 0;
+}
+
+/**
+	Resets the value to default
+*/
+void midi_ctl_reset(menu_entry *ent)
+{
+	assert(ent->type == ENTRY_MIDI_CTL);
+	if (ent->midi_ctl.def < 0)
+		midi_ctl_set(ent, (ent->midi_ctl.min + ent->midi_ctl.max) / 2);
+	else
+		midi_ctl_set(ent, ent->midi_ctl.def);
+}
+
+/**
+	Mark MIDI controller as changed
+*/
+void midi_ctl_touch(menu_entry *ent)
+{
+	assert(ent->type == ENTRY_MIDI_CTL);
+	ent->midi_ctl.changed = 1;
+}
+
+/**
+	Reset all controllers in menu
+*/
+void midi_ctl_reset_all(menu_entry *menu, int menu_size)
+{
+	for (int i = 0; i < menu_size; i++)
+		if (menu[i].type == ENTRY_MIDI_CTL)
+			midi_ctl_reset(&menu[i]);
+}
+
+/**
+	Mark all controllers in menu as changed
+*/
+void midi_ctl_touch_all(menu_entry *menu, int menu_size)
+{
+	for (int i = 0; i < menu_size; i++)
+		if (menu[i].type == ENTRY_MIDI_CTL)
+			midi_ctl_touch(&menu[i]);
+}
+
+/**
+	Update (transmit) all controllers marked as changed
+*/
+void midi_ctl_update_changed(menu_entry *menu, int menu_size, snd_seq_t *seq, int default_midi_channel)
+{
+	for (int i = 0; i < menu_size; i++)
+		if (menu[i].type == ENTRY_MIDI_CTL && menu[i].midi_ctl.changed)
+			midi_ctl_send_cc(&menu[i], seq, default_midi_channel);
+}
+
+/**
+	Shows a prompt asking for a new value for a MIDI controller
+*/
+void midi_ctl_value_prompt(WINDOW *win, menu_entry *ent)
+{
+	assert(ent->type == ENTRY_MIDI_CTL);
+	char *buf = draw_bottom_prompt(win, "Enter new value: ");
+	int value;
+	if (!sscanf(buf, "%d", &value) || !INRANGE(value, ent->midi_ctl.min, ent->midi_ctl.max))
+	{
+		draw_bottom_mesg(win, "Invalid value.");
+		wgetch(win);
+	}
+	else
+	{
+		midi_ctl_set(ent, value);
+	}
+	free(buf);
 }
 
 int main(int argc, char *argv[])
@@ -361,13 +414,10 @@ int main(int argc, char *argv[])
 	float menu_split = 0.7;
 	menu_move_cursor(menu, menu_size, &menu_cursor, -1);
 
-	// Send default CC values for controllers that have them defined
-	for (int i = 0; i < menu_size; i++)
-		if (menu[i].type == ENTRY_MIDI_CTL && menu[i].midi_ctl.def >= 0)
-		{
-			menu[i].midi_ctl.value = menu[i].midi_ctl.def;
-			midi_ctl_send_cc(&menu[i], midi_seq, default_midi_channel);
-		}
+	// Update changed controllers
+	// At this point only controllers with default value have 'changed' flag set
+	// see: config_parser.c
+	midi_ctl_update_changed(menu, menu_size, midi_seq, default_midi_channel);
 
 	// The main loop
 	int active = 1;
@@ -378,10 +428,6 @@ int main(int argc, char *argv[])
 		getmaxyx(win, win_h, win_w);
 		(void) win_w;
 		
-		// If set to true, MIDI CC will be sent
-		// for the active menu entry
-		int midi_cc_change = 0;
-
 		// Make sure cursor is in the viewport
 		if (menu_cursor - menu_viewport < 0)
 			menu_viewport = menu_cursor;
@@ -410,9 +456,8 @@ int main(int argc, char *argv[])
 			case KEY_ENTER:
 			case '\n':
 			case '\r':
-			case 'x':
-				midi_ctl_data_entry(win, active_entry);
-				midi_cc_change = 1;
+			case 'i':
+				midi_ctl_value_prompt(win, active_entry);
 				break;
 
 			// Previous controller
@@ -440,45 +485,58 @@ int main(int argc, char *argv[])
 			// Increment value
 			case KEY_RIGHT:
 			case 'l':
-				menu_entry_midi_ctl_set(active_entry, active_entry->midi_ctl.value + 1);
-				midi_cc_change = 1;
+				midi_ctl_set(active_entry, active_entry->midi_ctl.value + 1);
 				break;
 
 			// Increment value (big step)
 			case 'L':
-				menu_entry_midi_ctl_set(active_entry, active_entry->midi_ctl.value + 10);
-				midi_cc_change = 1;
+				midi_ctl_set(active_entry, active_entry->midi_ctl.value + 10);
 				break;
 
 			// Decrement value
 			case 'h':
 			case KEY_LEFT:
-				menu_entry_midi_ctl_set(active_entry, active_entry->midi_ctl.value - 1);
-				midi_cc_change = 1;
+				midi_ctl_set(active_entry, active_entry->midi_ctl.value - 1);
 				break;
 
 			// Decrement value (big step)
 			case 'H':
-				menu_entry_midi_ctl_set(active_entry, active_entry->midi_ctl.value - 10);
-				midi_cc_change = 1;
+				midi_ctl_set(active_entry, active_entry->midi_ctl.value - 10);
 				break;
 
 			// Set to min
-			case 'y':
-				menu_entry_midi_ctl_set(active_entry, 0);
-				midi_cc_change = 1;
+			case 'z':
+				midi_ctl_set(active_entry, active_entry->midi_ctl.min);
 				break;
 
 			// Set to center
-			case 'u':
-				menu_entry_midi_ctl_set(active_entry, 64);
-				midi_cc_change = 1;
+			case 'x':
+				midi_ctl_set(active_entry, (active_entry->midi_ctl.max + active_entry->midi_ctl.min) / 2);
 				break;
 
 			// Set to max
-			case 'i':
-				menu_entry_midi_ctl_set(active_entry, 127);
-				midi_cc_change = 1;
+			case 'c':
+				midi_ctl_set(active_entry, active_entry->midi_ctl.max);
+				break;
+
+			// Set to default (reset)
+			case 'r':
+				midi_ctl_reset(active_entry);
+				break;
+
+			// Retransmit
+			case 't':
+				midi_ctl_touch(active_entry);
+				break;
+
+			// Reset all
+			case 'R':
+				midi_ctl_reset_all(menu, menu_size);
+				break;
+
+			// Retransmit
+			case 'T':
+				midi_ctl_touch_all(menu, menu_size);
 				break;
 
 			// Search
@@ -497,9 +555,8 @@ int main(int argc, char *argv[])
 				break;
 		}
 
-		// Send MIDI message if controller value has changed
-		if (midi_cc_change)
-			midi_ctl_send_cc(active_entry, midi_seq, default_midi_channel);
+		// Update all changed controllers
+		midi_ctl_update_changed(menu, menu_size, midi_seq, default_midi_channel);
 	}
 
 	// Destroy the menu

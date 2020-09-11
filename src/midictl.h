@@ -43,6 +43,7 @@ typedef struct menu_entry
 		int def;     //!< Default value (-1 to ignore)
 		int channel; //!< MIDI channel (-1 to use default)
 		int slider;  //!< Should slider be displayed
+		int changed; //!< Non-zero if the value needs retransmitting to the device
 	} midi_ctl;
 } menu_entry;
 
