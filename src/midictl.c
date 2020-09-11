@@ -482,6 +482,16 @@ int main(int argc, char *argv[])
 				menu_move_cursor(menu, menu_size, &menu_cursor, win_h);
 				break;
 
+			// Jump to the end of the list
+			case KEY_END:
+				menu_move_cursor(menu, menu_size, &menu_cursor, menu_size);
+				break;
+
+			// Jump to the beginning of the list
+			case KEY_HOME:
+				menu_move_cursor(menu, menu_size, &menu_cursor, -menu_size);
+				break;
+
 			// Increment value
 			case KEY_RIGHT:
 			case 'l':
