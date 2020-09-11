@@ -34,6 +34,7 @@ Key bindings:
  - <kbd>/</kbd> - Search for controller by name (leave empty to repeat search)
  - <kbd>[</kbd> - Move split to the left
  - <kbd>]</kbd> - Move split to the right
+ - <kbd>=</kbd> - Hide/show left column
 
 ## Config file format
 The config file format is meant to be as simple and friendly as possible. Each line in the file represents one MIDI controller, a heading or a horizontal rule.

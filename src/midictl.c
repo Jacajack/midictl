@@ -47,7 +47,7 @@ void draw_value_label(WINDOW *win, int y, int x, int w, int v, int min, int max)
 /**
 	The main draw function
 */
-void draw_menu(WINDOW *win, menu_entry *menu, int count, int offset, int active, float split_pos)
+void draw_menu(WINDOW *win, menu_entry *menu, int count, int offset, int active, float split_pos, int show_lcol)
 {
 	int win_w, win_h;
 	getmaxyx(win, win_h, win_w);
@@ -56,12 +56,21 @@ void draw_menu(WINDOW *win, menu_entry *menu, int count, int offset, int active,
 	int colw[3];  // Column widths
 	int split[2]; // Splitter positions
 
-	// Left column is fixed width
-	col[0] = 0;
-	colw[0] = 4;
-	split[0] = col[0] + colw[0];
+	// Optional left column is fixed width
+	if (show_lcol)
+	{
+		col[0] = 0;
+		colw[0] = 4;
+		split[0] = col[0] + colw[0];
+	}
+	else
+	{
+		col[0] = -1;
+		colw[0] = 0;
+		split[0] = -1;
+	}
 
-	// Middle column takes 0.5 of the space left	
+	// Middle column with variable width	
 	col[1] = split[0] + 2;
 	colw[1] = (win_w - colw[0] + 1) * CLAMP(split_pos, 0.1f, 0.9f);
 	split[1] = col[1] + colw[1];
@@ -89,7 +98,8 @@ void draw_menu(WINDOW *win, menu_entry *menu, int count, int offset, int active,
 		// Left and middle columns
 		if (ent->type == ENTRY_MIDI_CTL)
 		{
-			mvprintw(y, col[0], "%3d", ent->midi_ctl.cc);
+			if (show_lcol)
+				mvprintw(y, col[0], "%3d", ent->midi_ctl.cc);
 
 			mvprintw(y, col[1], "%.*s", colw[1], ent->text);
 			int len = strlen(ent->text);
@@ -130,7 +140,8 @@ void draw_menu(WINDOW *win, menu_entry *menu, int count, int offset, int active,
 	}
 
 	// Draw splits
-	mvvline(0, split[0], 0, win_h);
+	if (show_lcol)
+		mvvline(0, split[0], 0, win_h);
 	mvvline(0, split[1], 0, win_h);
 
 	// Draw crosses where rules are
@@ -142,8 +153,12 @@ void draw_menu(WINDOW *win, menu_entry *menu, int count, int offset, int active,
 		
 		if (!valid || ent->type != ENTRY_HRULE) continue;
 
-		move(y, split[0]);
-		addch(ACS_PLUS);
+		if (show_lcol)
+		{
+			move(y, split[0]);
+			addch(ACS_PLUS);
+		}
+
 		move(y, split[1]);
 		addch(ACS_PLUS);
 	}
@@ -411,6 +426,7 @@ int main(int argc, char *argv[])
 	// UI setup - make sure we start on the top
 	int menu_cursor = 1;
 	int menu_viewport = 0;
+	int menu_show_lcol = 1;
 	float menu_split = 0.7;
 	menu_move_cursor(menu, menu_size, &menu_cursor, -1);
 
@@ -440,7 +456,7 @@ int main(int argc, char *argv[])
 		// Draw
 		clear();
 		menu_split = CLAMP(menu_split, 0.2f, 0.8f);
-		draw_menu(win, menu, menu_size, menu_viewport, menu_cursor, menu_split);
+		draw_menu(win, menu, menu_size, menu_viewport, menu_cursor, menu_split, menu_show_lcol);
 		refresh();
 
 		// Handle user input
@@ -554,6 +570,11 @@ int main(int argc, char *argv[])
 			// Search
 			case '/':
 				menu_search(win, menu, menu_size, ENTRY_MIDI_CTL, &menu_cursor);
+				break;
+
+			// Toggle left column visibility
+			case '=':
+				menu_show_lcol = !menu_show_lcol;
 				break;
 
 			// Move split to the left
