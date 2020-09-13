@@ -12,31 +12,33 @@ Configuration file format is described in the next section.
 _Please keep in mind that `midictl` is in very early stage of its life. I literally just wrote it in the two past days. You may stumble upon weird bugs (if you do, please [open an issue](https://github.com/Jacajack/midictl/issues/new)). Some things may change in future releases, including key bindings and config file format._
 
 Key bindings:
- - <kbd>Q</kbd> - Quit
- - <kbd>K</kbd>, <kbd>&#8593;</kbd> - Move up
- - <kbd>J</kbd>, <kbd>&#8595;</kbd> - Move down
- - <kbd>PgUp</kbd> - Move one page up
- - <kbd>PgDn</kbd> - Move one page down
- - <kbd>Home</kbd> - Jump to the beginning
- - <kbd>End</kbd> - Jump to the end
- - <kbd>H</kbd>, <kbd>&#8592;</kbd> - Value -= 1 
- - <kbd>L</kbd>, <kbd>&#8594;</kbd> - Value += 1
- - <kbd>Shift</kbd> + <kbd>H</kbd>, <kbd>Shift</kbd> + <kbd>Z</kbd> - Value -= 10 
- - <kbd>Shift</kbd> + <kbd>L</kbd>, <kbd>Shift</kbd> + <kbd>C</kbd> - Value += 10 
- - <kbd>I</kbd>, <kbd>Enter</kbd> - Enter value for the controller
- - <kbd>Z</kbd> - Min value
- - <kbd>X</kbd> - Center value
- - <kbd>C</kbd> - Max value
- - <kbd>T</kbd> - Transmit value to the MIDI device
- - <kbd>R</kbd> - Default value
- - <kbd>Shift</kbd> + <kbd>T</kbd> - Transmit all current values to the MIDI device
- - <kbd>Shift</kbd> + <kbd>R</kbd> - Reset all controllers to their defaults
- - <kbd>Shift</kbd> + <kbd>D</kbd> - Dump all controller values to file
- - <kbd>Shift</kbd> + <kbd>O</kbd> - Load controller values from a dump file
- - <kbd>/</kbd> - Search for controller by name (leave empty to repeat search)
- - <kbd>[</kbd> - Move split to the left
- - <kbd>]</kbd> - Move split to the right
- - <kbd>=</kbd> - Hide/show left column
+|Key|Action|
+|:---:|:---|
+|<kbd>Q</kbd>|Quit|
+|<kbd>K</kbd>, <kbd>&#8593;</kbd>|Move up|
+|<kbd>J</kbd>, <kbd>&#8595;</kbd>|Move down|
+|<kbd>PgUp</kbd>|Move one page up|
+|<kbd>PgDn</kbd>|Move one page down|
+|<kbd>Home</kbd>|Jump to the beginning|
+|<kbd>End</kbd>|Jump to the end|
+|<kbd>H</kbd>, <kbd>&#8592;</kbd>|Value -= 1| 
+|<kbd>L</kbd>, <kbd>&#8594;</kbd>|Value += 1|
+|<kbd>Shift</kbd> + <kbd>H</kbd>, <kbd>Shift</kbd> + <kbd>Z</kbd>|Value -= 10|
+|<kbd>Shift</kbd> + <kbd>L</kbd>, <kbd>Shift</kbd> + <kbd>C</kbd>|Value += 10|
+|<kbd>I</kbd>, <kbd>Enter</kbd>|Enter value for the controller|
+|<kbd>Z</kbd>|Min value|
+|<kbd>X</kbd>|Center value|
+|<kbd>C</kbd>| Max value|
+|<kbd>T</kbd>|Transmit value to the MIDI device|
+|<kbd>R</kbd>|Default value|
+|<kbd>Shift</kbd> + <kbd>T</kbd>|Transmit all current values to the MIDI device|
+|<kbd>Shift</kbd> + <kbd>R</kbd>|Reset all controllers to their defaults|
+|<kbd>Shift</kbd> + <kbd>D</kbd>|Dump all controller values to file|
+|<kbd>Shift</kbd> + <kbd>O</kbd>|Load controller values from a dump file|
+|<kbd>/</kbd>|Search for controller by name (leave empty to repeat search)|
+|<kbd>[</kbd>|Move split to the left|
+|<kbd>]</kbd>|Move split to the right|
+|<kbd>=</kbd>|Hide/show left column|
 
 ## Config file format
 The config file format is meant to be as simple and friendly as possible. Each line in the file represents one MIDI controller, a heading or a horizontal rule.
