@@ -68,14 +68,7 @@ Valid metadata parameters are:
  - `slider` - The slider is not displayed if set to 0
  - `update` - If non-zero, controller's default value is automatically transmitted when `midictl` starts.
 
-#### Some wild development ideas
- - [ ] More colors!
- - [ ] Device access
- - [ ] `hide` metadata parameter
- - [ ] Loading config files on the fly
- - [ ] Multiple tabs
- - [ ] Configurable key bindings
- - [ ] Transmit program change messages etc.
- - [ ] 14-bit controller support (a big one...)
+### Contributing / Roadmap
+Development ideas and TODO list are [here](https://github.com/Jacajack/midictl/projects/1). 
 
-Pull requests are welcome!
+If you've found a bug, have a question or an idea, please [open an issue](https://github.com/Jacajack/midictl/issues). Pull requests are welcome too!
