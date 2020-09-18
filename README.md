@@ -23,8 +23,8 @@ Key bindings:
 |<kbd>End</kbd>|Jump to the end|
 |<kbd>H</kbd>, <kbd>&#8592;</kbd>|Value -= 1| 
 |<kbd>L</kbd>, <kbd>&#8594;</kbd>|Value += 1|
-|<kbd>Shift</kbd> + <kbd>H</kbd>, <kbd>Shift</kbd> + <kbd>Z</kbd>|Value -= 10|
-|<kbd>Shift</kbd> + <kbd>L</kbd>, <kbd>Shift</kbd> + <kbd>C</kbd>|Value += 10|
+|<kbd>G</kbd>, <kbd>Shift</kbd> + <kbd>H</kbd>, <kbd>Shift</kbd> + <kbd>Z</kbd>|Value -= 10|
+|<kbd>;</kbd>, <kbd>Shift</kbd> + <kbd>L</kbd>, <kbd>Shift</kbd> + <kbd>C</kbd>|Value += 10|
 |<kbd>I</kbd>, <kbd>Enter</kbd>|Enter value for the controller|
 |<kbd>Z</kbd>|Min value|
 |<kbd>X</kbd>|Center value|

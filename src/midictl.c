@@ -604,6 +604,7 @@ int main(int argc, char *argv[])
 
 			// Increment value (big step)
 			case 'L':
+			case ';':
 			case 'C':
 				midi_ctl_set(active_entry, active_entry->midi_ctl.value + 10);
 				break;
@@ -616,6 +617,7 @@ int main(int argc, char *argv[])
 
 			// Decrement value (big step)
 			case 'H':
+			case 'g':
 			case 'Z':
 				midi_ctl_set(active_entry, active_entry->midi_ctl.value - 10);
 				break;
