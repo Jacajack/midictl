@@ -482,12 +482,49 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
+	bool save_config_path = 1;
+	// check if config file path is given
+	//if not open the last given path.
+	if (config.config_path == NULL)
+	{
+		FILE *prev_config_path = fopen(".prevconfpath", "rt");
+		if (prev_config_path == NULL)
+		{
+			//prev file doesnt exist
+			fprintf(stderr, "Previously used config path is non existant\n");
+			exit(EXIT_FAILURE);
+		}
+		
+		//get the file size
+		fseek(prev_config_path, 0L, SEEK_END);
+    	uint32_t sz = ftell(prev_config_path) + 1;
+    	fseek(prev_config_path, 0L, SEEK_SET);
+
+		//get the path
+		char* f_path = malloc(sz);
+		fgets(f_path, sz, prev_config_path);
+
+		//close the file
+		fclose(prev_config_path);
+
+		config.config_path = f_path;
+		
+		save_config_path = 0;
+	}
+
 	// Open config file
 	FILE *config_file = fopen(config.config_path, "rt");
 	if (config_file == NULL)
 	{
 		fprintf(stderr, "Could not open config file: %s\n", strerror(errno));
 		exit(EXIT_FAILURE);
+	}
+
+	if (save_config_path)
+	{
+		FILE *conf_path = fopen(".prevconfpath", "wt");
+		fputs(config.config_path, conf_path);
+		fclose(conf_path);
 	}
 	
 	// Build menu

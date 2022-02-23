@@ -1,12 +1,5 @@
 #!/bin/bash
 
-if [ $# -eq 0 ]
-  then
-    echo "Please enter config file"
-    exit 0
-fi
-
-
 echo -e "Starting midictl\n\nMidi output device list\n"
 
 out_devs=$(aconnect -o)
