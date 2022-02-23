@@ -26,7 +26,7 @@ clean:
 	rm -f $(DEPENDS) $(OBJECTS) midictl
 
 midictl: $(OBJECTS)
-	$(CC) $(CFLAGS) $(LIBS) $^ -o $@
+	$(CC) $(CFLAGS) $^ -o $@ $(LIBS)
 
 -include $(DEPENDS)
 
