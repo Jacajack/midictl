@@ -4,3 +4,4 @@ midictl
 **/*.d
 **/*.ctl
 **/*.prog
+.prevconfpath

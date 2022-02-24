@@ -5,7 +5,7 @@
 const char *argp_program_version = "midictl v1.0rc1";
 const char *argp_program_bug_address = "<mrjjot@gmail.com>";
 char argp_doc[] = "midictl - a terminal-based MIDI control panel";
-char argp_keydoc[] = "CONFIG";
+char argp_keydoc[] = "[CONFIG]";
 struct argp_option argp_options[] =
 {
 	{"channel", 'c', "channel", 0, "MIDI channel"},
@@ -38,7 +38,7 @@ error_t args_parser(int key, char *arg, struct argp_state *state)
 			break;
 
 		case ARGP_KEY_END:
-			if (state->arg_num < 1) argp_usage(state);
+			if (state->arg_num < 0) argp_usage(state);
 			break;
 		
 		default:

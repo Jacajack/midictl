@@ -10,7 +10,7 @@ typedef struct midictl_args
 	int midi_port;
 	int midi_channel;
 
-	const char *config_path;
+	char *config_path;
 	const char *midi_device_str;
 	const char *midi_port_str;
 	const char *midi_channel_str;
