@@ -491,7 +491,7 @@ int main(int argc, char *argv[])
 		if (prev_config_path == NULL)
 		{
 			//prev file doesnt exist
-			fprintf(stderr, "Previously used config path is non existant\n");
+			fprintf(stderr, "No config path specified and the previous config path file doesn't exist.\n");
 			exit(EXIT_FAILURE);
 		}
 		
@@ -523,9 +523,20 @@ int main(int argc, char *argv[])
 	if (save_config_path)
 	{
 		FILE *conf_path = fopen(".prevconfpath", "wt");
-		fputs(config.config_path, conf_path);
-		fclose(conf_path);
+
+		if (conf_path == NULL) 
+		{
+			fprintf(stderr, "Unable to save configuration file path (read only location)\n"
+							"Next launch will require path/to/config argument");
+		}
+		else 
+		{
+			fputs(config.config_path, conf_path);
+			fclose(conf_path);
+		}
 	}
+	else 
+		free((void*)config.config_path);
 	
 	// Build menu
 	int menu_size = 0;
